@@ -22,8 +22,8 @@ class KMEClient:
     def __init__(self):
         """Initialize KME client."""
         self.config = config_manager.config
-        self.session = self._create_session()
         self.logger = logging.getLogger(__name__)
+        self.session = self._create_session()
     
     def _create_session(self) -> requests.Session:
         """Create requests session with mTLS configuration."""
