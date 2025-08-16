@@ -16,6 +16,7 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509.oid import NameOID
 from cryptography.exceptions import InvalidSignature, InvalidKey
+import ipaddress
 
 from ..config import config_manager, logger
 
@@ -393,10 +394,10 @@ class AuthenticationService:
             ).add_extension(
                 x509.SubjectAlternativeName([
                     x509.DNSName(common_name),
-                    x509.IPAddress("127.0.0.1")
+                    x509.IPAddress(ipaddress.IPv4Address("127.0.0.1"))
                 ]),
                 critical=False,
-            ).sign(private_key, hashes.SHA256())
+            ).sign(private_key, hashes.SHA256(), default_backend())
             
             self.logger.info(f"Created self-signed certificate for {common_name}")
             return cert, private_key
