@@ -315,7 +315,7 @@ def interactive():
     
     while True:
         try:
-            command = Prompt.ask("[bold green]SAE>[/bold green]")
+            command = input("SAE> ")
             
             if command.lower() in ['quit', 'exit', 'q']:
                 console.print("Goodbye!")
@@ -333,21 +333,81 @@ Available commands:
   quit                - Exit interactive mode
                 """)
             elif command.lower() == 'status':
-                # Invoke status command
-                ctx = click.Context(cli)
-                status.callback(ctx)
+                # Call status function directly
+                try:
+                    # Get KME server status
+                    kme_status = kme_client.get_status()
+                    
+                    # Get key statistics
+                    from src.services.key_service import key_service
+                    key_stats = key_service.get_key_statistics()
+                    
+                    # Create SAE status
+                    sae_status = SAEStatus(
+                        sae_id=config.sae_id,
+                        mode=config.sae_mode,
+                        status="active" if kme_status.status == "running" else "inactive",
+                        available_keys=key_stats['available_keys'],
+                        total_keys=key_stats['total_keys'],
+                        last_activity=datetime.now(),
+                        connected_slaves=[] if config_manager.is_master_mode() else None,
+                        connected_master=None if config_manager.is_master_mode() else "MASTER_001"
+                    )
+                    
+                    print_status(sae_status)
+                    
+                    # Show KME connection status
+                    console.print(f"\n[green]✓[/green] KME Server: {kme_status.status}")
+                    console.print(f"[green]✓[/green] KME Version: {kme_status.version}")
+                    
+                except Exception as e:
+                    console.print(f"[red]✗[/red] Error checking status: {e}")
+                    
             elif command.lower() == 'request-keys':
-                # Invoke request-keys command
-                ctx = click.Context(cli)
-                request_keys.callback(ctx)
+                # Call request-keys function directly with defaults
+                try:
+                    response = kme_client.request_encryption_keys(256, 1)
+                    console.print(f"\n[green]✓[/green] Successfully received {response.total_keys} keys")
+                    
+                    # Display key information
+                    keys = []
+                    for spec_key in response.keys:
+                        key = spec_key.key_container
+                        keys.append(key)
+                    
+                    print_keys(keys, "Received Encryption Keys")
+                    
+                except Exception as e:
+                    console.print(f"[red]✗[/red] Error requesting keys: {e}")
+                    
             elif command.lower() == 'list-keys':
-                # Invoke list-keys command
-                ctx = click.Context(cli)
-                list_keys.callback(ctx)
+                # Call list-keys function directly
+                try:
+                    from src.services.key_service import key_service
+                    available_keys = key_service.get_available_keys()
+                    print_keys(available_keys, "Local Keys")
+                    
+                except Exception as e:
+                    console.print(f"[red]✗[/red] Error listing keys: {e}")
+                    
             elif command.lower() == 'test-connection':
-                # Invoke test-connection command
-                ctx = click.Context(cli)
-                test_connection.callback(ctx)
+                # Call test-connection function directly
+                try:
+                    success = kme_client.test_connection()
+                    
+                    if success:
+                        console.print("[green]✓[/green] KME connection successful")
+                        
+                        # Show server info
+                        server_info = kme_client.get_server_info()
+                        if 'error' not in server_info:
+                            console.print(f"[green]✓[/green] Server Status: {server_info['status']}")
+                            console.print(f"[green]✓[/green] Server Version: {server_info['version']}")
+                    else:
+                        console.print("[red]✗[/red] KME connection failed")
+                        
+                except Exception as e:
+                    console.print(f"[red]✗[/red] Connection test error: {e}")
             else:
                 console.print(f"[yellow]Unknown command: {command}[/yellow]")
                 console.print("Type 'help' for available commands")
