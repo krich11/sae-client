@@ -2,6 +2,7 @@
 
 # SAE Client Setup Script
 # Sets up the SAE client environment and dependencies
+# Uses existing virtual environment if available, creates new one if needed
 
 set -e
 
@@ -77,20 +78,36 @@ install_system_dependencies() {
     print_status "System dependencies installed successfully"
 }
 
-# Function to create virtual environment
+# Function to create or use existing virtual environment
 create_virtual_environment() {
-    print_header "Creating Virtual Environment"
+    print_header "Setting Up Virtual Environment"
     
-    if [ -d "venv" ]; then
-        print_warning "Virtual environment already exists. Removing old one..."
-        rm -rf venv
+    if [ -d "venv" ] && [ -f "venv/bin/activate" ]; then
+        print_status "Existing virtual environment found. Using existing venv..."
+        source venv/bin/activate
+        
+        # Check if the virtual environment is working
+        if python3 -c "import sys; print('Python version:', sys.version)" > /dev/null 2>&1; then
+            print_status "Existing virtual environment is valid and activated"
+            
+            # Upgrade pip in existing environment
+            print_status "Upgrading pip in existing environment..."
+            pip install --upgrade pip --quiet
+            
+            return 0
+        else
+            print_warning "Existing virtual environment appears corrupted. Removing and creating new one..."
+            rm -rf venv
+        fi
     fi
     
+    # Create new virtual environment if none exists or if existing one is corrupted
+    print_status "Creating new virtual environment..."
     python3 -m venv venv
     source venv/bin/activate
     
     # Upgrade pip
-    pip install --upgrade pip
+    pip install --upgrade pip --quiet
     
     print_status "Virtual environment created successfully"
 }
@@ -101,15 +118,32 @@ install_python_dependencies() {
     
     source venv/bin/activate
     
-    # Install dependencies with optimized flags
-    print_status "Installing dependencies (this may take a few minutes)..."
-    pip install --no-cache-dir --prefer-binary --use-pep517 --quiet -r requirements.txt
-    
-    if [ $? -eq 0 ]; then
-        print_status "Python dependencies installed successfully"
+    # Check if requirements are already installed
+    print_status "Checking existing dependencies..."
+    if pip show pydantic-settings > /dev/null 2>&1; then
+        print_status "Dependencies appear to be already installed. Checking for updates..."
+        
+        # Install/upgrade dependencies with optimized flags
+        print_status "Installing/upgrading dependencies (this may take a few minutes)..."
+        pip install --no-cache-dir --prefer-binary --use-pep517 --quiet --upgrade -r requirements.txt
+        
+        if [ $? -eq 0 ]; then
+            print_status "Python dependencies updated successfully"
+        else
+            print_warning "Some dependencies failed to install with optimized flags, trying standard installation..."
+            pip install --upgrade -r requirements.txt
+        fi
     else
-        print_warning "Some dependencies failed to install with optimized flags, trying standard installation..."
-        pip install -r requirements.txt
+        # Fresh installation
+        print_status "Installing dependencies (this may take a few minutes)..."
+        pip install --no-cache-dir --prefer-binary --use-pep517 --quiet -r requirements.txt
+        
+        if [ $? -eq 0 ]; then
+            print_status "Python dependencies installed successfully"
+        else
+            print_warning "Some dependencies failed to install with optimized flags, trying standard installation..."
+            pip install -r requirements.txt
+        fi
     fi
 }
 
@@ -250,10 +284,10 @@ main() {
     # Install system dependencies
     install_system_dependencies
     
-    # Create virtual environment
+    # Create or use existing virtual environment
     create_virtual_environment
     
-    # Install Python dependencies
+    # Install or update Python dependencies
     install_python_dependencies
     
     # Create directory structure
