@@ -1,0 +1,318 @@
+"""
+Key Management Service for SAE Client.
+Handles key request/response, storage, lifecycle management, and cryptographic operations.
+"""
+
+import json
+import logging
+import base64
+from datetime import datetime, timedelta
+from typing import List, Dict, Any, Optional, Tuple
+from pathlib import Path
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+from cryptography.exceptions import InvalidKey
+
+from ..config import config_manager, logger
+from ..models.api_models import (
+    KeyType, KeyStatus, LocalKey, SpecKeyContainer, KeyRequest, KeyResponse
+)
+from .storage_service import StorageService
+
+
+class KeyManagementService:
+    """Comprehensive key management service for SAE operations."""
+    
+    def __init__(self):
+        """Initialize key management service."""
+        self.config = config_manager.config
+        self.logger = logging.getLogger(__name__)
+        self.storage = StorageService()
+        self._load_keys()
+    
+    def _load_keys(self):
+        """Load existing keys from storage."""
+        try:
+            self.keys = self.storage.load_keys()
+            self.logger.info(f"Loaded {len(self.keys)} existing keys from storage")
+        except Exception as e:
+            self.logger.warning(f"Could not load existing keys: {e}")
+            self.keys = {}
+    
+    def request_keys_from_kme(self, key_type: KeyType, key_size: int, quantity: int = 1) -> KeyResponse:
+        """
+        Request keys from KME server.
+        
+        Args:
+            key_type: Type of keys to request (ENCRYPTION/DECRYPTION)
+            key_size: Key size in bits
+            quantity: Number of keys to request
+            
+        Returns:
+            KeyResponse: Response containing requested keys
+        """
+        from ..api.client import kme_client
+        
+        try:
+            self.logger.info(f"Requesting {quantity} {key_type.value} keys of size {key_size} from KME")
+            
+            if key_type == KeyType.ENCRYPTION:
+                response = kme_client.request_encryption_keys(key_size, quantity)
+            else:
+                response = kme_client.request_decryption_keys(key_size, quantity)
+            
+            # Store received keys locally
+            stored_keys = []
+            for spec_key in response.keys:
+                key_container = spec_key.key_container
+                local_key = self._store_key_from_kme(key_container, key_type)
+                stored_keys.append(local_key)
+            
+            self.logger.info(f"Successfully stored {len(stored_keys)} keys from KME")
+            return response
+            
+        except Exception as e:
+            self.logger.error(f"Failed to request keys from KME: {e}")
+            raise
+    
+    def _store_key_from_kme(self, key_container: Dict[str, Any], key_type: KeyType) -> LocalKey:
+        """
+        Store a key received from KME.
+        
+        Args:
+            key_container: Key container from KME
+            key_type: Type of key
+            
+        Returns:
+            LocalKey: Stored key object
+        """
+        key_id = key_container.get('key_id', f"kme_{datetime.now().timestamp()}")
+        
+        local_key = LocalKey(
+            key_id=key_id,
+            key_type=key_type,
+            key_material=key_container.get('key_material', ''),
+            key_size=key_container.get('key_size', 256),
+            source="kme",
+            creation_time=datetime.fromisoformat(key_container.get('creation_time', datetime.now().isoformat())),
+            expiry_time=datetime.fromisoformat(key_container.get('expiry_time', (datetime.now() + timedelta(hours=24)).isoformat())) if key_container.get('expiry_time') else None,
+            status=KeyStatus.AVAILABLE,
+            metadata={
+                'kme_response': key_container,
+                'stored_at': datetime.now().isoformat()
+            }
+        )
+        
+        self.keys[key_id] = local_key
+        self.storage.save_key(local_key)
+        self.logger.info(f"Stored key {key_id} from KME")
+        
+        return local_key
+    
+    def store_key_from_master(self, key_id: str, key_data: Dict[str, Any], master_id: str) -> LocalKey:
+        """
+        Store a key received from a master SAE.
+        
+        Args:
+            key_id: Key identifier
+            key_data: Key data from master
+            master_id: ID of the master SAE
+            
+        Returns:
+            LocalKey: Stored key object
+        """
+        local_key = LocalKey(
+            key_id=key_id,
+            key_type=KeyType(key_data.get('key_type', KeyType.ENCRYPTION)),
+            key_material=key_data.get('key_material', ''),
+            key_size=key_data.get('key_size', 256),
+            source=f"master:{master_id}",
+            creation_time=datetime.fromisoformat(key_data.get('creation_time', datetime.now().isoformat())),
+            expiry_time=datetime.fromisoformat(key_data.get('expiry_time', (datetime.now() + timedelta(hours=24)).isoformat())) if key_data.get('expiry_time') else None,
+            status=KeyStatus.AVAILABLE,
+            metadata={
+                'master_id': master_id,
+                'received_at': datetime.now().isoformat(),
+                'master_data': key_data
+            }
+        )
+        
+        self.keys[key_id] = local_key
+        self.storage.save_key(local_key)
+        self.logger.info(f"Stored key {key_id} from master {master_id}")
+        
+        return local_key
+    
+    def get_key(self, key_id: str) -> Optional[LocalKey]:
+        """
+        Retrieve a key by ID.
+        
+        Args:
+            key_id: Key identifier
+            
+        Returns:
+            LocalKey: Key object if found, None otherwise
+        """
+        key = self.keys.get(key_id)
+        if key and self._is_key_valid(key):
+            return key
+        elif key and not self._is_key_valid(key):
+            self.logger.warning(f"Key {key_id} has expired or is invalid")
+            self._mark_key_expired(key_id)
+        return None
+    
+    def get_available_keys(self, key_type: Optional[KeyType] = None) -> List[LocalKey]:
+        """
+        Get all available keys, optionally filtered by type.
+        
+        Args:
+            key_type: Optional key type filter
+            
+        Returns:
+            List[LocalKey]: List of available keys
+        """
+        available_keys = []
+        for key in self.keys.values():
+            if self._is_key_valid(key) and key.status == KeyStatus.AVAILABLE:
+                if key_type is None or key.key_type == key_type:
+                    available_keys.append(key)
+        
+        return available_keys
+    
+    def use_key(self, key_id: str) -> Optional[LocalKey]:
+        """
+        Mark a key as used and return it.
+        
+        Args:
+            key_id: Key identifier
+            
+        Returns:
+            LocalKey: Used key object if found and valid
+        """
+        key = self.get_key(key_id)
+        if key:
+            key.status = KeyStatus.USED
+            key.metadata['used_at'] = datetime.now().isoformat()
+            self.storage.save_key(key)
+            self.logger.info(f"Marked key {key_id} as used")
+            return key
+        return None
+    
+    def delete_key(self, key_id: str) -> bool:
+        """
+        Delete a key from storage.
+        
+        Args:
+            key_id: Key identifier
+            
+        Returns:
+            bool: True if key was deleted, False otherwise
+        """
+        if key_id in self.keys:
+            del self.keys[key_id]
+            self.storage.delete_key(key_id)
+            self.logger.info(f"Deleted key {key_id}")
+            return True
+        return False
+    
+    def _is_key_valid(self, key: LocalKey) -> bool:
+        """
+        Check if a key is valid and not expired.
+        
+        Args:
+            key: Key to validate
+            
+        Returns:
+            bool: True if key is valid, False otherwise
+        """
+        if key.status == KeyStatus.EXPIRED:
+            return False
+        
+        if key.expiry_time and datetime.now() > key.expiry_time:
+            self._mark_key_expired(key.key_id)
+            return False
+        
+        return True
+    
+    def _mark_key_expired(self, key_id: str):
+        """Mark a key as expired."""
+        if key_id in self.keys:
+            self.keys[key_id].status = KeyStatus.EXPIRED
+            self.keys[key_id].metadata['expired_at'] = datetime.now().isoformat()
+            self.storage.save_key(self.keys[key_id])
+            self.logger.info(f"Marked key {key_id} as expired")
+    
+    def cleanup_expired_keys(self) -> int:
+        """
+        Clean up expired keys from storage.
+        
+        Returns:
+            int: Number of keys cleaned up
+        """
+        expired_count = 0
+        current_time = datetime.now()
+        
+        for key_id, key in list(self.keys.items()):
+            if key.expiry_time and current_time > key.expiry_time:
+                self.delete_key(key_id)
+                expired_count += 1
+        
+        self.logger.info(f"Cleaned up {expired_count} expired keys")
+        return expired_count
+    
+    def get_key_statistics(self) -> Dict[str, Any]:
+        """
+        Get key statistics.
+        
+        Returns:
+            Dict[str, Any]: Key statistics
+        """
+        total_keys = len(self.keys)
+        available_keys = len([k for k in self.keys.values() if k.status == KeyStatus.AVAILABLE])
+        used_keys = len([k for k in self.keys.values() if k.status == KeyStatus.USED])
+        expired_keys = len([k for k in self.keys.values() if k.status == KeyStatus.EXPIRED])
+        
+        encryption_keys = len([k for k in self.keys.values() if k.key_type == KeyType.ENCRYPTION])
+        decryption_keys = len([k for k in self.keys.values() if k.key_type == KeyType.DECRYPTION])
+        
+        return {
+            'total_keys': total_keys,
+            'available_keys': available_keys,
+            'used_keys': used_keys,
+            'expired_keys': expired_keys,
+            'encryption_keys': encryption_keys,
+            'decryption_keys': decryption_keys,
+            'kme_keys': len([k for k in self.keys.values() if k.source == 'kme']),
+            'master_keys': len([k for k in self.keys.values() if k.source.startswith('master:')])
+        }
+    
+    def export_key_data(self, key_id: str) -> Dict[str, Any]:
+        """
+        Export key data for sharing with other SAEs.
+        
+        Args:
+            key_id: Key identifier
+            
+        Returns:
+            Dict[str, Any]: Key data for export
+        """
+        key = self.get_key(key_id)
+        if not key:
+            raise ValueError(f"Key {key_id} not found or invalid")
+        
+        return {
+            'key_id': key.key_id,
+            'key_type': key.key_type.value,
+            'key_size': key.key_size,
+            'key_material': key.key_material,
+            'creation_time': key.creation_time.isoformat(),
+            'expiry_time': key.expiry_time.isoformat() if key.expiry_time else None,
+            'source': key.source,
+            'status': key.status.value
+        }
+
+
+# Global key management service instance
+key_service = KeyManagementService()
