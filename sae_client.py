@@ -9,6 +9,7 @@ import os
 import json
 import click
 import logging
+import readline
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
@@ -26,6 +27,33 @@ from src.services.notification_service import master_notification_service, slave
 from src.models.api_models import KeyType, KeyStatus, SAEStatus
 
 console = Console()
+
+# Available commands for autocomplete
+AVAILABLE_COMMANDS = [
+    'health',
+    'request-keys', 
+    'list-keys',
+    'notify-slave',
+    'request-from-master',
+    'test-connection',
+    'test-menu',
+    'help',
+    '?',
+    'quit',
+    'exit',
+    'q'
+]
+
+def command_completer(text, state):
+    """Command completer function for readline."""
+    if not text:
+        options = AVAILABLE_COMMANDS
+    else:
+        options = [cmd for cmd in AVAILABLE_COMMANDS if cmd.lower().startswith(text.lower())]
+    
+    if state < len(options):
+        return options[state]
+    return None
 
 
 def print_banner():
@@ -342,8 +370,20 @@ def test_connection():
 @cli.command()
 def interactive():
     """Start interactive mode."""
+    # Setup readline for command autocomplete
+    try:
+        readline.set_completer(command_completer)
+        readline.parse_and_bind('tab: complete')
+        autocomplete_available = True
+    except Exception as e:
+        console.print(f"[yellow]Warning: Autocomplete not available: {e}[/yellow]")
+        autocomplete_available = False
+    
     console.print("[bold blue]SAE Client Interactive Mode[/bold blue]")
-    console.print("Type 'help' for available commands, 'quit' to exit\n")
+    console.print("Type 'help' for available commands, 'quit' to exit")
+    if autocomplete_available:
+        console.print("[dim]Tip: Press TAB for command autocomplete[/dim]")
+    console.print()
     
     while True:
         try:
