@@ -99,17 +99,23 @@ def print_keys(keys, title="Available Keys"):
     table.add_column("Type", style="green")
     table.add_column("Size", style="yellow")
     table.add_column("Status", style="magenta")
-    table.add_column("Source", style="blue")
     table.add_column("Created", style="white")
     
     for key in keys:
+        # Handle both SpecKeyContainer and direct KeyContainer objects
+        if hasattr(key, 'key_container'):
+            # SpecKeyContainer format
+            key_container = key.key_container
+        else:
+            # Direct KeyContainer format
+            key_container = key
+        
         table.add_row(
-            key.key_id,
-            key.key_type.value,
-            str(key.key_size),
-            key.status.value,
-            key.source,
-            key.creation_time.strftime("%Y-%m-%d %H:%M:%S")
+            key_container.key_id,
+            key_container.key_type.value if hasattr(key_container.key_type, 'value') else str(key_container.key_type),
+            str(key_container.key_size),
+            key_container.status.value if hasattr(key_container.status, 'value') else str(key_container.status),
+            key_container.creation_time.strftime("%Y-%m-%d %H:%M:%S")
         )
     
     console.print(table)
@@ -205,7 +211,9 @@ def health():
 @click.option('--key-type', type=click.Choice(['encryption', 'decryption']), default='encryption')
 @click.option('--key-size', default=256, help='Key size in bits')
 @click.option('--quantity', default=1, help='Number of keys to request')
-def request_keys(key_type, key_size, quantity):
+@click.option('--slave-sae-id', help='Slave SAE ID (required for encryption keys)')
+@click.option('--master-sae-id', help='Master SAE ID (required for decryption keys)')
+def request_keys(key_type, key_size, quantity, slave_sae_id, master_sae_id):
     """Request keys from KME server."""
     with Progress(
         SpinnerColumn(),
@@ -216,9 +224,23 @@ def request_keys(key_type, key_size, quantity):
         
         try:
             if key_type == 'encryption':
-                response = kme_client.request_encryption_keys(key_size, quantity)
+                # For encryption keys, we need slave SAE ID
+                if not slave_sae_id:
+                    slave_sae_id = input("Enter slave SAE ID: ").strip()
+                    if not slave_sae_id:
+                        console.print("[red]✗[/red] Slave SAE ID is required for encryption keys")
+                        return
+                
+                response = kme_client.request_encryption_keys_for_slave(slave_sae_id, key_size, quantity)
             else:
-                response = kme_client.request_decryption_keys(key_size, quantity)
+                # For decryption keys, we need master SAE ID
+                if not master_sae_id:
+                    master_sae_id = input("Enter master SAE ID: ").strip()
+                    if not master_sae_id:
+                        console.print("[red]✗[/red] Master SAE ID is required for decryption keys")
+                        return
+                
+                response = kme_client.request_decryption_keys_for_master(master_sae_id, key_size, quantity)
             
             progress.update(task, completed=True)
             
@@ -470,9 +492,15 @@ Available commands:
                     console.print(f"[red]✗[/red] Error checking health: {e}")
                     
             elif command.lower() == 'request-keys':
-                # Call request-keys function directly with defaults
+                # Call request-keys function directly with ETSI compliance
                 try:
-                    response = kme_client.request_encryption_keys(256, 1)
+                    # Prompt for slave SAE ID for encryption keys
+                    slave_sae_id = input("Enter slave SAE ID: ").strip()
+                    if not slave_sae_id:
+                        console.print("[red]✗[/red] Slave SAE ID is required for encryption keys")
+                        continue
+                    
+                    response = kme_client.request_encryption_keys_for_slave(slave_sae_id, 256, 1)
                     console.print(f"\n[green]✓[/green] Successfully received {response.total_keys} keys")
                     
                     # Display key information

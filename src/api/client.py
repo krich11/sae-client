@@ -132,15 +132,23 @@ class KMEClient:
             raise
     
     def request_encryption_keys(self, key_size: int = 256, quantity: int = 1) -> KeyResponse:
-        """Request encryption keys from KME."""
+        """Request encryption keys from KME (legacy method)."""
         return self._request_keys(KeyType.ENCRYPTION, key_size, quantity)
     
     def request_decryption_keys(self, key_size: int = 256, quantity: int = 1) -> KeyResponse:
-        """Request decryption keys from KME."""
+        """Request decryption keys from KME (legacy method)."""
         return self._request_keys(KeyType.DECRYPTION, key_size, quantity)
     
+    def request_encryption_keys_for_slave(self, slave_sae_id: str, key_size: int = 256, quantity: int = 1) -> KeyResponse:
+        """Request encryption keys from KME for a specific slave SAE (ETSI compliant)."""
+        return self._request_keys_for_slave(slave_sae_id, KeyType.ENCRYPTION, key_size, quantity)
+    
+    def request_decryption_keys_for_master(self, master_sae_id: str, key_size: int = 256, quantity: int = 1) -> KeyResponse:
+        """Request decryption keys from KME for a specific master SAE (ETSI compliant)."""
+        return self._request_keys_for_master(master_sae_id, KeyType.DECRYPTION, key_size, quantity)
+    
     def _request_keys(self, key_type: KeyType, key_size: int, quantity: int) -> KeyResponse:
-        """Request keys from KME server."""
+        """Request keys from KME server (legacy method)."""
         try:
             request_data = KeyRequest(
                 key_type=key_type,
@@ -162,6 +170,58 @@ class KMEClient:
             )
         except Exception as e:
             self.logger.error(f"Failed to request {key_type} keys: {e}")
+            raise
+    
+    def _request_keys_for_slave(self, slave_sae_id: str, key_type: KeyType, key_size: int, quantity: int) -> KeyResponse:
+        """Request keys from KME server for a specific slave SAE (ETSI compliant)."""
+        try:
+            request_data = KeyRequest(
+                key_type=key_type,
+                key_size=key_size,
+                quantity=quantity
+            )
+            
+            # ETSI compliant endpoint: /api/v1/keys/{slave_SAE_ID}/enc_keys
+            endpoint = f'/api/v1/keys/{slave_sae_id}/enc_keys'
+            response = self._make_request('POST', endpoint, json=request_data.dict())
+            data = response.json()
+            
+            # Parse certificate extension
+            cert_ext = self._parse_certificate_extension(response.headers)
+            
+            return KeyResponse(
+                keys=data.get('keys', []),
+                total_keys=data.get('total_keys', 0),
+                easy_kms_certificate_extension=cert_ext
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to request {key_type} keys for slave {slave_sae_id}: {e}")
+            raise
+    
+    def _request_keys_for_master(self, master_sae_id: str, key_type: KeyType, key_size: int, quantity: int) -> KeyResponse:
+        """Request keys from KME server for a specific master SAE (ETSI compliant)."""
+        try:
+            request_data = KeyRequest(
+                key_type=key_type,
+                key_size=key_size,
+                quantity=quantity
+            )
+            
+            # ETSI compliant endpoint: /api/v1/keys/{master_SAE_ID}/dec_keys
+            endpoint = f'/api/v1/keys/{master_sae_id}/dec_keys'
+            response = self._make_request('POST', endpoint, json=request_data.dict())
+            data = response.json()
+            
+            # Parse certificate extension
+            cert_ext = self._parse_certificate_extension(response.headers)
+            
+            return KeyResponse(
+                keys=data.get('keys', []),
+                total_keys=data.get('total_keys', 0),
+                easy_kms_certificate_extension=cert_ext
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to request {key_type} keys for master {master_sae_id}: {e}")
             raise
     
     def get_encryption_keys(self, key_id: Optional[str] = None) -> KeyResponse:
