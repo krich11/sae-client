@@ -105,41 +105,71 @@ def cli(config, verbose):
 
 
 @cli.command()
-def status():
-    """Show SAE client status."""
+def health():
+    """Show SAE client health and configuration."""
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         console=console
     ) as progress:
-        task = progress.add_task("Checking SAE status...", total=None)
+        task = progress.add_task("Checking SAE health...", total=None)
         
         try:
-            # Get KME server status
-            kme_status = kme_client.get_status()
+            # Get KME server health
+            kme_health = kme_client.get_health()
+            
+            # Get key statistics
+            from src.services.key_service import key_service
+            key_stats = key_service.get_key_statistics()
             
             # Create SAE status
             sae_status = SAEStatus(
                 sae_id=config.sae_id,
                 mode=config.sae_mode,
-                status="active" if kme_status.status == "running" else "inactive",
-                available_keys=0,  # TODO: Get from local storage
-                total_keys=0,      # TODO: Get from local storage
+                status="active" if kme_health.status == "healthy" else "inactive",
+                available_keys=key_stats['available_keys'],
+                total_keys=key_stats['total_keys'],
                 last_activity=datetime.now(),
                 connected_slaves=[] if config_manager.is_master_mode() else None,
                 connected_master=None if config_manager.is_master_mode() else "MASTER_001"
             )
             
             progress.update(task, completed=True)
+            
+            # Print SAE Configuration
+            console.print("\n[bold blue]SAE Configuration[/bold blue]")
+            config_table = Table(title="SAE Node Configuration")
+            config_table.add_column("Property", style="cyan")
+            config_table.add_column("Value", style="green")
+            
+            config_table.add_row("SAE ID", config.sae_id)
+            config_table.add_row("Mode", config.sae_mode)
+            config_table.add_row("KME Host", config.kme_host)
+            config_table.add_row("KME Port", str(config.kme_port))
+            config_table.add_row("KME Base URL", config.kme_base_url)
+            config_table.add_row("SSL Verification", "Enabled" if config.verify_ssl else "Disabled")
+            config_table.add_row("Timeout", f"{config.timeout}s")
+            config_table.add_row("Max Retries", str(config.max_retries))
+            config_table.add_row("Data Directory", config.data_dir)
+            config_table.add_row("Logs Directory", config.logs_dir)
+            config_table.add_row("Certificate Path", config.sae_cert_path)
+            config_table.add_row("Private Key Path", config.sae_key_path)
+            config_table.add_row("CA Certificate Path", config.ca_cert_path)
+            
+            console.print(config_table)
+            
+            # Print SAE Status
             print_status(sae_status)
             
-            # Show KME connection status
-            console.print(f"\n[green]✓[/green] KME Server: {kme_status.status}")
-            console.print(f"[green]✓[/green] KME Version: {kme_status.version}")
+            # Show KME health status
+            console.print(f"\n[bold blue]KME Server Health[/bold blue]")
+            console.print(f"[green]✓[/green] Status: {kme_health.status}")
+            console.print(f"[green]✓[/green] Version: {kme_health.version}")
+            console.print(f"[green]✓[/green] Timestamp: {kme_health.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
             
         except Exception as e:
             progress.update(task, completed=True)
-            console.print(f"[red]✗[/red] Error checking status: {e}")
+            console.print(f"[red]✗[/red] Error checking health: {e}")
 
 
 @cli.command()
@@ -324,7 +354,7 @@ def interactive():
             elif command.lower() in ['help', '?']:
                 console.print("""
 Available commands:
-  status              - Show SAE status
+  health              - Show SAE health and configuration
   request-keys        - Request keys from KME
   list-keys           - List local keys
   notify-slave        - Notify slave of available key (Master mode)
@@ -334,11 +364,11 @@ Available commands:
   help, ?             - Show this help
   quit                - Exit interactive mode
                 """)
-            elif command.lower() == 'status':
-                # Call status function directly
+            elif command.lower() == 'health':
+                # Call health function directly
                 try:
-                    # Get KME server status
-                    kme_status = kme_client.get_status()
+                    # Get KME server health
+                    kme_health = kme_client.get_health()
                     
                     # Get key statistics
                     from src.services.key_service import key_service
@@ -348,7 +378,7 @@ Available commands:
                     sae_status = SAEStatus(
                         sae_id=config.sae_id,
                         mode=config.sae_mode,
-                        status="active" if kme_status.status == "running" else "inactive",
+                        status="active" if kme_health.status == "healthy" else "inactive",
                         available_keys=key_stats['available_keys'],
                         total_keys=key_stats['total_keys'],
                         last_activity=datetime.now(),
@@ -356,14 +386,39 @@ Available commands:
                         connected_master=None if config_manager.is_master_mode() else "MASTER_001"
                     )
                     
+                    # Print SAE Configuration
+                    console.print("\n[bold blue]SAE Configuration[/bold blue]")
+                    config_table = Table(title="SAE Node Configuration")
+                    config_table.add_column("Property", style="cyan")
+                    config_table.add_column("Value", style="green")
+                    
+                    config_table.add_row("SAE ID", config.sae_id)
+                    config_table.add_row("Mode", config.sae_mode)
+                    config_table.add_row("KME Host", config.kme_host)
+                    config_table.add_row("KME Port", str(config.kme_port))
+                    config_table.add_row("KME Base URL", config.kme_base_url)
+                    config_table.add_row("SSL Verification", "Enabled" if config.verify_ssl else "Disabled")
+                    config_table.add_row("Timeout", f"{config.timeout}s")
+                    config_table.add_row("Max Retries", str(config.max_retries))
+                    config_table.add_row("Data Directory", config.data_dir)
+                    config_table.add_row("Logs Directory", config.logs_dir)
+                    config_table.add_row("Certificate Path", config.sae_cert_path)
+                    config_table.add_row("Private Key Path", config.sae_key_path)
+                    config_table.add_row("CA Certificate Path", config.ca_cert_path)
+                    
+                    console.print(config_table)
+                    
+                    # Print SAE Status
                     print_status(sae_status)
                     
-                    # Show KME connection status
-                    console.print(f"\n[green]✓[/green] KME Server: {kme_status.status}")
-                    console.print(f"[green]✓[/green] KME Version: {kme_status.version}")
+                    # Show KME health status
+                    console.print(f"\n[bold blue]KME Server Health[/bold blue]")
+                    console.print(f"[green]✓[/green] Status: {kme_health.status}")
+                    console.print(f"[green]✓[/green] Version: {kme_health.version}")
+                    console.print(f"[green]✓[/green] Timestamp: {kme_health.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
                     
                 except Exception as e:
-                    console.print(f"[red]✗[/red] Error checking status: {e}")
+                    console.print(f"[red]✗[/red] Error checking health: {e}")
                     
             elif command.lower() == 'request-keys':
                 # Call request-keys function directly with defaults

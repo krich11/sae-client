@@ -102,6 +102,25 @@ class KMEClient:
             self.logger.error(f"Failed to get KME status: {e}")
             raise
     
+    def get_health(self) -> StatusSpec:
+        """Get KME server health."""
+        try:
+            response = self._make_request('GET', '/health')
+            data = response.json()
+            
+            # Parse certificate extension
+            cert_ext = self._parse_certificate_extension(response.headers)
+            
+            return StatusSpec(
+                status=data.get('status', 'unknown'),
+                version=data.get('version', 'unknown'),
+                timestamp=datetime.fromisoformat(data.get('timestamp', datetime.now().isoformat())),
+                easy_kms_certificate_extension=cert_ext
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to get KME health: {e}")
+            raise
+    
     def request_encryption_keys(self, key_size: int = 256, quantity: int = 1) -> KeyResponse:
         """Request encryption keys from KME."""
         return self._request_keys(KeyType.ENCRYPTION, key_size, quantity)
