@@ -579,24 +579,24 @@ def test_master_key_request_post():
             f"{config.kme_base_url}/api/v1/keys/{slave_sae_id}/enc_keys",
             json=request_data
         )
-            console.print(f"[green]✓[/green] Status Code: {response.status_code}")
+        console.print(f"[green]✓[/green] Status Code: {response.status_code}")
             
-            # Pretty print JSON response
-            try:
-                json_data = response.json()
-                json_str = json.dumps(json_data, indent=2)
-                if len(json_str) > 2048:
-                    console.print(f"[green]✓[/green] Response (truncated):\n{json_str[:2048]}...")
-                else:
-                    console.print(f"[green]✓[/green] Response:\n{json_str}")
-            except json.JSONDecodeError:
-                # Not JSON, show as text
-                if len(response.text) > 2048:
-                    console.print(f"[green]✓[/green] Response (truncated): {response.text[:2048]}...")
-                else:
-                    console.print(f"[green]✓[/green] Response: {response.text}")
-        except Exception as e:
-            console.print(f"[red]✗[/red] Error: {e}")
+        # Pretty print JSON response
+        try:
+            json_data = response.json()
+            json_str = json.dumps(json_data, indent=2)
+            if len(json_str) > 2048:
+                console.print(f"[green]✓[/green] Response (truncated):\n{json_str[:2048]}...")
+            else:
+                console.print(f"[green]✓[/green] Response:\n{json_str}")
+        except json.JSONDecodeError:
+            # Not JSON, show as text
+            if len(response.text) > 2048:
+                console.print(f"[green]✓[/green] Response (truncated): {response.text[:2048]}...")
+            else:
+                console.print(f"[green]✓[/green] Response: {response.text}")
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error: {e}")
 
 
 def test_master_key_request_get():
@@ -649,29 +649,29 @@ def test_slave_key_request_post():
         "quantity": quantity
     }
     
+    try:
+        response = kme_client.session.post(
+            f"{config.kme_base_url}/api/v1/keys/{master_sae_id}/dec_keys",
+            json=request_data
+        )
+        console.print(f"[green]✓[/green] Status Code: {response.status_code}")
+        
+        # Pretty print JSON response
         try:
-            response = kme_client.session.post(
-                f"{config.kme_base_url}/api/v1/keys/{master_sae_id}/dec_keys",
-                json=request_data
-            )
-            console.print(f"[green]✓[/green] Status Code: {response.status_code}")
-            
-            # Pretty print JSON response
-            try:
-                json_data = response.json()
-                json_str = json.dumps(json_data, indent=2)
-                if len(json_str) > 2048:
-                    console.print(f"[green]✓[/green] Response (truncated):\n{json_str[:2048]}...")
-                else:
-                    console.print(f"[green]✓[/green] Response:\n{json_str}")
-            except json.JSONDecodeError:
-                # Not JSON, show as text
-                if len(response.text) > 2048:
-                    console.print(f"[green]✓[/green] Response (truncated): {response.text[:2048]}...")
-                else:
-                    console.print(f"[green]✓[/green] Response: {response.text}")
-        except Exception as e:
-            console.print(f"[red]✗[/red] Error: {e}")
+            json_data = response.json()
+            json_str = json.dumps(json_data, indent=2)
+            if len(json_str) > 2048:
+                console.print(f"[green]✓[/green] Response (truncated):\n{json_str[:2048]}...")
+            else:
+                console.print(f"[green]✓[/green] Response:\n{json_str}")
+        except json.JSONDecodeError:
+            # Not JSON, show as text
+            if len(response.text) > 2048:
+                console.print(f"[green]✓[/green] Response (truncated): {response.text[:2048]}...")
+            else:
+                console.print(f"[green]✓[/green] Response: {response.text}")
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error: {e}")
 
 
 def test_slave_key_request_get():
@@ -682,26 +682,26 @@ def test_slave_key_request_get():
     master_sae_id = input("Enter master SAE ID (or press Enter for default 'MASTER_001'): ").strip()
     master_sae_id = master_sae_id or "MASTER_001"
     
+    try:
+        response = kme_client.session.get(f"{config.kme_base_url}/api/v1/keys/{master_sae_id}/dec_keys")
+        console.print(f"[green]✓[/green] Status Code: {response.status_code}")
+        
+        # Pretty print JSON response
         try:
-            response = kme_client.session.get(f"{config.kme_base_url}/api/v1/keys/{master_sae_id}/dec_keys")
-            console.print(f"[green]✓[/green] Status Code: {response.status_code}")
-            
-            # Pretty print JSON response
-            try:
-                json_data = response.json()
-                json_str = json.dumps(json_data, indent=2)
-                if len(json_str) > 2048:
-                    console.print(f"[green]✓[/green] Response (truncated):\n{json_str[:2048]}...")
-                else:
-                    console.print(f"[green]✓[/green] Response:\n{json_str}")
-            except json.JSONDecodeError:
-                # Not JSON, show as text
-                if len(response.text) > 2048:
-                    console.print(f"[green]✓[/green] Response (truncated): {response.text[:2048]}...")
-                else:
-                    console.print(f"[green]✓[/green] Response: {response.text}")
-        except Exception as e:
-            console.print(f"[red]✗[/red] Error: {e}")
+            json_data = response.json()
+            json_str = json.dumps(json_data, indent=2)
+            if len(json_str) > 2048:
+                console.print(f"[green]✓[/green] Response (truncated):\n{json_str[:2048]}...")
+            else:
+                console.print(f"[green]✓[/green] Response:\n{json_str}")
+        except json.JSONDecodeError:
+            # Not JSON, show as text
+            if len(response.text) > 2048:
+                console.print(f"[green]✓[/green] Response (truncated): {response.text[:2048]}...")
+            else:
+                console.print(f"[green]✓[/green] Response: {response.text}")
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error: {e}")
 
 
 def test_docs_endpoint():
