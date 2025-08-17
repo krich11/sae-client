@@ -438,12 +438,12 @@ Available test options:
   8. Test API Documentation (/docs)
   9. Test ReDoc Documentation (/redoc)
   10. Test All Routes
-  0. Back to main menu
+  b. Back to main menu
         """)
         
-        choice = input("Enter your choice (0-10): ").strip()
+        choice = input("Enter your choice (1-10, b): ").strip()
         
-        if choice == '0':
+        if choice.lower() == 'b':
             break
         elif choice == '1':
             test_root_endpoint()
