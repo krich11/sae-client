@@ -346,7 +346,7 @@ def interactive():
     
     while True:
         try:
-            command = input("SAE> ")
+            command = input(f"{config.sae_id}> ")
             
             if command.lower() in ['quit', 'exit', 'q']:
                 console.print("Goodbye!")
