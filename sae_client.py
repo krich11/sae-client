@@ -329,6 +329,7 @@ Available commands:
   notify-slave        - Notify slave of available key (Master mode)
   request-from-master - Request keys from master (Slave mode)
   test-connection     - Test KME connection
+  test-menu           - Test Easy-KME server routes
   help                - Show this help
   quit                - Exit interactive mode
                 """)
@@ -408,6 +409,8 @@ Available commands:
                         
                 except Exception as e:
                     console.print(f"[red]✗[/red] Connection test error: {e}")
+            elif command.lower() == 'test-menu':
+                test_menu()
             else:
                 console.print(f"[yellow]Unknown command: {command}[/yellow]")
                 console.print("Type 'help' for available commands")
@@ -417,6 +420,246 @@ Available commands:
             break
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")
+
+
+def test_menu():
+    """Test menu for Easy-KME server routes."""
+    while True:
+        console.print("\n[bold blue]Easy-KME Server Test Menu[/bold blue]")
+        console.print("""
+Available test options:
+  1. Test Root endpoint (/)
+  2. Test Health check (/health)
+  3. Test KME Status (/api/v1/keys/{slave_sae_id}/status)
+  4. Test Master SAE Key Request POST (/api/v1/keys/{slave_sae_id}/enc_keys)
+  5. Test Master SAE Key Request GET (/api/v1/keys/{slave_sae_id}/enc_keys)
+  6. Test Slave SAE Key Request POST (/api/v1/keys/{master_sae_id}/dec_keys)
+  7. Test Slave SAE Key Request GET (/api/v1/keys/{master_sae_id}/dec_keys)
+  8. Test API Documentation (/docs)
+  9. Test ReDoc Documentation (/redoc)
+  10. Test All Routes
+  0. Back to main menu
+        """)
+        
+        choice = input("Enter your choice (0-10): ").strip()
+        
+        if choice == '0':
+            break
+        elif choice == '1':
+            test_root_endpoint()
+        elif choice == '2':
+            test_health_endpoint()
+        elif choice == '3':
+            test_kme_status()
+        elif choice == '4':
+            test_master_key_request_post()
+        elif choice == '5':
+            test_master_key_request_get()
+        elif choice == '6':
+            test_slave_key_request_post()
+        elif choice == '7':
+            test_slave_key_request_get()
+        elif choice == '8':
+            test_docs_endpoint()
+        elif choice == '9':
+            test_redoc_endpoint()
+        elif choice == '10':
+            test_all_routes()
+        else:
+            console.print("[yellow]Invalid choice. Please enter 0-10.[/yellow]")
+
+
+def test_root_endpoint():
+    """Test the root endpoint."""
+    console.print("\n[bold]Testing Root Endpoint (/) - GET[/bold]")
+    console.print("[dim]Purpose: Root endpoint (No ETSI Compliance)[/dim]")
+    
+    try:
+        response = kme_client.session.get(f"{config.kme_base_url}/")
+        console.print(f"[green]✓[/green] Status Code: {response.status_code}")
+        console.print(f"[green]✓[/green] Response: {response.text[:200]}...")
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error: {e}")
+
+
+def test_health_endpoint():
+    """Test the health endpoint."""
+    console.print("\n[bold]Testing Health Endpoint (/health) - GET[/bold]")
+    console.print("[dim]Purpose: Health check (No ETSI Compliance)[/dim]")
+    
+    try:
+        response = kme_client.session.get(f"{config.kme_base_url}/health")
+        console.print(f"[green]✓[/green] Status Code: {response.status_code}")
+        console.print(f"[green]✓[/green] Response: {response.text[:200]}...")
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error: {e}")
+
+
+def test_kme_status():
+    """Test the KME status endpoint."""
+    console.print("\n[bold]Testing KME Status (/api/v1/keys/{slave_sae_id}/status) - GET[/bold]")
+    console.print("[dim]Purpose: Get KME status (✅ ETSI Compliant)[/dim]")
+    
+    slave_sae_id = input("Enter slave SAE ID (or press Enter for default 'SLAVE_001'): ").strip()
+    slave_sae_id = slave_sae_id or "SLAVE_001"
+    
+    try:
+        response = kme_client.session.get(f"{config.kme_base_url}/api/v1/keys/{slave_sae_id}/status")
+        console.print(f"[green]✓[/green] Status Code: {response.status_code}")
+        console.print(f"[green]✓[/green] Response: {response.text[:200]}...")
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error: {e}")
+
+
+def test_master_key_request_post():
+    """Test the master SAE key request POST endpoint."""
+    console.print("\n[bold]Testing Master SAE Key Request POST (/api/v1/keys/{slave_sae_id}/enc_keys) - POST[/bold]")
+    console.print("[dim]Purpose: Master SAE key request (✅ ETSI Compliant)[/dim]")
+    
+    slave_sae_id = input("Enter slave SAE ID (or press Enter for default 'SLAVE_001'): ").strip()
+    slave_sae_id = slave_sae_id or "SLAVE_001"
+    
+    key_size = input("Enter key size in bits (or press Enter for default 256): ").strip()
+    key_size = int(key_size) if key_size else 256
+    
+    quantity = input("Enter quantity (or press Enter for default 1): ").strip()
+    quantity = int(quantity) if quantity else 1
+    
+    request_data = {
+        "key_type": "encryption",
+        "key_size": key_size,
+        "quantity": quantity
+    }
+    
+    try:
+        response = kme_client.session.post(
+            f"{config.kme_base_url}/api/v1/keys/{slave_sae_id}/enc_keys",
+            json=request_data
+        )
+        console.print(f"[green]✓[/green] Status Code: {response.status_code}")
+        console.print(f"[green]✓[/green] Response: {response.text[:200]}...")
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error: {e}")
+
+
+def test_master_key_request_get():
+    """Test the master SAE key request GET endpoint."""
+    console.print("\n[bold]Testing Master SAE Key Request GET (/api/v1/keys/{slave_sae_id}/enc_keys) - GET[/bold]")
+    console.print("[dim]Purpose: Master SAE key request simple (✅ ETSI Compliant)[/dim]")
+    
+    slave_sae_id = input("Enter slave SAE ID (or press Enter for default 'SLAVE_001'): ").strip()
+    slave_sae_id = slave_sae_id or "SLAVE_001"
+    
+    try:
+        response = kme_client.session.get(f"{config.kme_base_url}/api/v1/keys/{slave_sae_id}/enc_keys")
+        console.print(f"[green]✓[/green] Status Code: {response.status_code}")
+        console.print(f"[green]✓[/green] Response: {response.text[:200]}...")
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error: {e}")
+
+
+def test_slave_key_request_post():
+    """Test the slave SAE key request POST endpoint."""
+    console.print("\n[bold]Testing Slave SAE Key Request POST (/api/v1/keys/{master_sae_id}/dec_keys) - POST[/bold]")
+    console.print("[dim]Purpose: Slave SAE key request (✅ ETSI Compliant)[/dim]")
+    
+    master_sae_id = input("Enter master SAE ID (or press Enter for default 'MASTER_001'): ").strip()
+    master_sae_id = master_sae_id or "MASTER_001"
+    
+    key_size = input("Enter key size in bits (or press Enter for default 256): ").strip()
+    key_size = int(key_size) if key_size else 256
+    
+    quantity = input("Enter quantity (or press Enter for default 1): ").strip()
+    quantity = int(quantity) if quantity else 1
+    
+    request_data = {
+        "key_type": "decryption",
+        "key_size": key_size,
+        "quantity": quantity
+    }
+    
+    try:
+        response = kme_client.session.post(
+            f"{config.kme_base_url}/api/v1/keys/{master_sae_id}/dec_keys",
+            json=request_data
+        )
+        console.print(f"[green]✓[/green] Status Code: {response.status_code}")
+        console.print(f"[green]✓[/green] Response: {response.text[:200]}...")
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error: {e}")
+
+
+def test_slave_key_request_get():
+    """Test the slave SAE key request GET endpoint."""
+    console.print("\n[bold]Testing Slave SAE Key Request GET (/api/v1/keys/{master_sae_id}/dec_keys) - GET[/bold]")
+    console.print("[dim]Purpose: Slave SAE key request simple (✅ ETSI Compliant)[/dim]")
+    
+    master_sae_id = input("Enter master SAE ID (or press Enter for default 'MASTER_001'): ").strip()
+    master_sae_id = master_sae_id or "MASTER_001"
+    
+    try:
+        response = kme_client.session.get(f"{config.kme_base_url}/api/v1/keys/{master_sae_id}/dec_keys")
+        console.print(f"[green]✓[/green] Status Code: {response.status_code}")
+        console.print(f"[green]✓[/green] Response: {response.text[:200]}...")
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error: {e}")
+
+
+def test_docs_endpoint():
+    """Test the API documentation endpoint."""
+    console.print("\n[bold]Testing API Documentation (/docs) - GET[/bold]")
+    console.print("[dim]Purpose: API documentation (No ETSI Compliance)[/dim]")
+    
+    try:
+        response = kme_client.session.get(f"{config.kme_base_url}/docs")
+        console.print(f"[green]✓[/green] Status Code: {response.status_code}")
+        console.print(f"[green]✓[/green] Response length: {len(response.text)} characters")
+        if response.status_code == 200:
+            console.print("[green]✓[/green] Documentation page accessible")
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error: {e}")
+
+
+def test_redoc_endpoint():
+    """Test the ReDoc documentation endpoint."""
+    console.print("\n[bold]Testing ReDoc Documentation (/redoc) - GET[/bold]")
+    console.print("[dim]Purpose: API documentation (No ETSI Compliance)[/dim]")
+    
+    try:
+        response = kme_client.session.get(f"{config.kme_base_url}/redoc")
+        console.print(f"[green]✓[/green] Status Code: {response.status_code}")
+        console.print(f"[green]✓[/green] Response length: {len(response.text)} characters")
+        if response.status_code == 200:
+            console.print("[green]✓[/green] ReDoc page accessible")
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error: {e}")
+
+
+def test_all_routes():
+    """Test all Easy-KME server routes."""
+    console.print("\n[bold blue]Testing All Easy-KME Server Routes[/bold blue]")
+    console.print("=" * 50)
+    
+    tests = [
+        ("Root Endpoint", test_root_endpoint),
+        ("Health Check", test_health_endpoint),
+        ("KME Status", test_kme_status),
+        ("Master Key Request POST", test_master_key_request_post),
+        ("Master Key Request GET", test_master_key_request_get),
+        ("Slave Key Request POST", test_slave_key_request_post),
+        ("Slave Key Request GET", test_slave_key_request_get),
+        ("API Documentation", test_docs_endpoint),
+        ("ReDoc Documentation", test_redoc_endpoint)
+    ]
+    
+    for test_name, test_func in tests:
+        console.print(f"\n[bold]Testing: {test_name}[/bold]")
+        try:
+            test_func()
+        except Exception as e:
+            console.print(f"[red]✗[/red] Test failed: {e}")
+    
+    console.print("\n[bold green]All route tests completed![/bold green]")
 
 
 if __name__ == '__main__':

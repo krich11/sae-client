@@ -40,11 +40,15 @@ class KMEClient:
             self.logger.warning(f"Cert:{cert_paths['sae_cert']}, {cert_paths['sae_key']}")
         
         # Configure CA certificate for server verification
-        if Path(cert_paths['ca_cert']).exists():
-            session.verify = cert_paths['ca_cert']
-            self.logger.info("CA certificate configured for server verification")
+        if self.config.verify_ssl:
+            if Path(cert_paths['ca_cert']).exists():
+                session.verify = cert_paths['ca_cert']
+                self.logger.info("CA certificate configured for server verification")
+            else:
+                self.logger.warning("CA certificate not found, disabling SSL verification")
+                session.verify = False
         else:
-            self.logger.warning("CA certificate not found, disabling SSL verification")
+            self.logger.warning("SSL verification disabled by configuration")
             session.verify = False
         
         # Configure timeouts and retries

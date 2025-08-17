@@ -40,6 +40,7 @@ class SAEConfig(BaseSettings):
     # Network Settings
     timeout: int = Field(default=30, description="Request timeout in seconds")
     max_retries: int = Field(default=3, description="Maximum retry attempts")
+    verify_ssl: bool = Field(default=True, description="Verify SSL certificates")
     
     # Master/Slave Settings
     master_slave_port: int = Field(default=8080, description="Master/Slave communication port")
