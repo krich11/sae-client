@@ -163,11 +163,17 @@ class KMEClient:
             # Parse certificate extension
             cert_ext = self._parse_certificate_extension(response.headers)
             
-            return KeyResponse(
-                keys=data.get('keys', []),
-                total_keys=data.get('total_keys', 0),
-                easy_kms_certificate_extension=cert_ext
-            )
+            try:
+                return KeyResponse(
+                    keys=data.get('keys', []),
+                    total_keys=data.get('total_keys', 0),
+                    easy_kms_certificate_extension=cert_ext
+                )
+            except Exception as validation_error:
+                self.logger.error(f"KeyResponse validation failed. Full KME response:")
+                import json
+                self.logger.error(json.dumps(data, indent=2))
+                raise validation_error
         except Exception as e:
             self.logger.error(f"Failed to request {key_type} keys: {e}")
             raise
@@ -189,11 +195,17 @@ class KMEClient:
             # Parse certificate extension
             cert_ext = self._parse_certificate_extension(response.headers)
             
-            return KeyResponse(
-                keys=data.get('keys', []),
-                total_keys=data.get('total_keys', 0),
-                easy_kms_certificate_extension=cert_ext
-            )
+            try:
+                return KeyResponse(
+                    keys=data.get('keys', []),
+                    total_keys=data.get('total_keys', 0),
+                    easy_kms_certificate_extension=cert_ext
+                )
+            except Exception as validation_error:
+                self.logger.error(f"KeyResponse validation failed for slave {slave_sae_id}. Full KME response:")
+                import json
+                self.logger.error(json.dumps(data, indent=2))
+                raise validation_error
         except Exception as e:
             self.logger.error(f"Failed to request {key_type} keys for slave {slave_sae_id}: {e}")
             raise
@@ -215,11 +227,17 @@ class KMEClient:
             # Parse certificate extension
             cert_ext = self._parse_certificate_extension(response.headers)
             
-            return KeyResponse(
-                keys=data.get('keys', []),
-                total_keys=data.get('total_keys', 0),
-                easy_kms_certificate_extension=cert_ext
-            )
+            try:
+                return KeyResponse(
+                    keys=data.get('keys', []),
+                    total_keys=data.get('total_keys', 0),
+                    easy_kms_certificate_extension=cert_ext
+                )
+            except Exception as validation_error:
+                self.logger.error(f"KeyResponse validation failed for master {master_sae_id}. Full KME response:")
+                import json
+                self.logger.error(json.dumps(data, indent=2))
+                raise validation_error
         except Exception as e:
             self.logger.error(f"Failed to request {key_type} keys for master {master_sae_id}: {e}")
             raise
@@ -245,11 +263,17 @@ class KMEClient:
             # Parse certificate extension
             cert_ext = self._parse_certificate_extension(response.headers)
             
-            return KeyResponse(
-                keys=data.get('keys', []),
-                total_keys=data.get('total_keys', 0),
-                easy_kms_certificate_extension=cert_ext
-            )
+            try:
+                return KeyResponse(
+                    keys=data.get('keys', []),
+                    total_keys=data.get('total_keys', 0),
+                    easy_kms_certificate_extension=cert_ext
+                )
+            except Exception as validation_error:
+                self.logger.error(f"KeyResponse validation failed for {endpoint}. Full KME response:")
+                import json
+                self.logger.error(json.dumps(data, indent=2))
+                raise validation_error
         except Exception as e:
             self.logger.error(f"Failed to get keys from {endpoint}: {e}")
             raise
