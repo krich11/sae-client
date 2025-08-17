@@ -31,6 +31,7 @@ console = Console()
 # Available commands for autocomplete
 AVAILABLE_COMMANDS = [
     'health',
+    'status',
     'request-keys', 
     'list-keys',
     'reset-keys',
@@ -232,6 +233,84 @@ def health():
         except Exception as e:
             progress.update(task, completed=True)
             console.print(f"[red]✗[/red] Error checking health: {e}")
+
+
+@cli.command()
+@click.option('--slave-id', help='Slave SAE ID to check status for')
+def status(slave_id):
+    """Check KME status for key availability and capabilities."""
+    if not slave_id:
+        slave_id = input("Enter slave SAE ID to check status for: ").strip()
+        if not slave_id:
+            console.print("[red]✗[/red] Slave SAE ID is required")
+            return
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console
+    ) as progress:
+        task = progress.add_task(f"Checking KME status for slave {slave_id}...", total=None)
+        
+        try:
+            # Call the KME status endpoint
+            response = kme_client.session.get(f"{config.kme_base_url}/api/v1/keys/{slave_id}/status")
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                progress.update(task, completed=True)
+                
+                # Display status information
+                console.print(f"\n[bold blue]KME Status for Slave SAE: {slave_id}[/bold blue]")
+                
+                status_table = Table(title="Key Availability and Capabilities")
+                status_table.add_column("Property", style="cyan")
+                status_table.add_column("Value", style="green")
+                status_table.add_column("Description", style="yellow")
+                
+                status_table.add_row("Source KME ID", data.get('source_KME_ID', 'N/A'), "KME providing the status")
+                status_table.add_row("Target KME ID", data.get('target_KME_ID', 'N/A'), "Target KME (if different)")
+                status_table.add_row("Master SAE ID", data.get('master_SAE_ID', 'N/A'), "Calling master SAE")
+                status_table.add_row("Slave SAE ID", data.get('slave_SAE_ID', 'N/A'), "Specified slave SAE")
+                status_table.add_row("Default Key Size", str(data.get('key_size', 'N/A')), "Default key size in bits")
+                status_table.add_row("Stored Key Count", str(data.get('stored_key_count', 'N/A')), "Available keys for this SAE")
+                status_table.add_row("Max Key Count", str(data.get('max_key_count', 'N/A')), "Maximum keys KME can store")
+                status_table.add_row("Max Per Request", str(data.get('max_key_per_request', 'N/A')), "Max keys per single request")
+                status_table.add_row("Max Key Size", str(data.get('max_key_size', 'N/A')), "Maximum supported key size")
+                status_table.add_row("Min Key Size", str(data.get('min_key_size', 'N/A')), "Minimum supported key size")
+                status_table.add_row("Max SAE Count", str(data.get('max_SAE_ID_count', 'N/A')), "Max additional SAEs for multicast")
+                
+                console.print(status_table)
+                
+                # Show recommendations
+                console.print(f"\n[bold blue]Recommendations:[/bold blue]")
+                stored_count = data.get('stored_key_count', 0)
+                max_per_request = data.get('max_key_per_request', 1)
+                
+                if stored_count > 0:
+                    console.print(f"[green]✓[/green] {stored_count} keys available for requests")
+                    console.print(f"[green]✓[/green] Optimal request size: {min(max_per_request, stored_count)} keys")
+                else:
+                    console.print(f"[yellow]⚠[/yellow] No keys currently available")
+                
+                if data.get('max_SAE_ID_count', 0) > 0:
+                    console.print(f"[green]✓[/green] Multicast supported (up to {data.get('max_SAE_ID_count')} additional SAEs)")
+                else:
+                    console.print(f"[yellow]⚠[/yellow] Multicast not supported")
+                    
+            else:
+                progress.update(task, completed=True)
+                console.print(f"[red]✗[/red] KME status request failed: {response.status_code}")
+                try:
+                    error_data = response.json()
+                    console.print(f"[red]✗[/red] Error: {error_data.get('message', 'Unknown error')}")
+                except:
+                    console.print(f"[red]✗[/red] Response: {response.text}")
+            
+        except Exception as e:
+            progress.update(task, completed=True)
+            console.print(f"[red]✗[/red] Error checking KME status: {e}")
 
 
 @cli.command()
@@ -550,6 +629,69 @@ Available commands:
                     
                 except Exception as e:
                     console.print(f"[red]✗[/red] Error checking health: {e}")
+                    
+            elif command.lower() == 'status':
+                # Call status function directly
+                try:
+                    slave_id = input("Enter slave SAE ID to check status for: ").strip()
+                    if not slave_id:
+                        console.print("[red]✗[/red] Slave SAE ID is required")
+                        continue
+                    
+                    # Call the KME status endpoint
+                    response = kme_client.session.get(f"{config.kme_base_url}/api/v1/keys/{slave_id}/status")
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        
+                        # Display status information
+                        console.print(f"\n[bold blue]KME Status for Slave SAE: {slave_id}[/bold blue]")
+                        
+                        status_table = Table(title="Key Availability and Capabilities")
+                        status_table.add_column("Property", style="cyan")
+                        status_table.add_column("Value", style="green")
+                        status_table.add_column("Description", style="yellow")
+                        
+                        status_table.add_row("Source KME ID", data.get('source_KME_ID', 'N/A'), "KME providing the status")
+                        status_table.add_row("Target KME ID", data.get('target_KME_ID', 'N/A'), "Target KME (if different)")
+                        status_table.add_row("Master SAE ID", data.get('master_SAE_ID', 'N/A'), "Calling master SAE")
+                        status_table.add_row("Slave SAE ID", data.get('slave_SAE_ID', 'N/A'), "Specified slave SAE")
+                        status_table.add_row("Default Key Size", str(data.get('key_size', 'N/A')), "Default key size in bits")
+                        status_table.add_row("Stored Key Count", str(data.get('stored_key_count', 'N/A')), "Available keys for this SAE")
+                        status_table.add_row("Max Key Count", str(data.get('max_key_count', 'N/A')), "Maximum keys KME can store")
+                        status_table.add_row("Max Per Request", str(data.get('max_key_per_request', 'N/A')), "Max keys per single request")
+                        status_table.add_row("Max Key Size", str(data.get('max_key_size', 'N/A')), "Maximum supported key size")
+                        status_table.add_row("Min Key Size", str(data.get('min_key_size', 'N/A')), "Minimum supported key size")
+                        status_table.add_row("Max SAE Count", str(data.get('max_SAE_ID_count', 'N/A')), "Max additional SAEs for multicast")
+                        
+                        console.print(status_table)
+                        
+                        # Show recommendations
+                        console.print(f"\n[bold blue]Recommendations:[/bold blue]")
+                        stored_count = data.get('stored_key_count', 0)
+                        max_per_request = data.get('max_key_per_request', 1)
+                        
+                        if stored_count > 0:
+                            console.print(f"[green]✓[/green] {stored_count} keys available for requests")
+                            console.print(f"[green]✓[/green] Optimal request size: {min(max_per_request, stored_count)} keys")
+                        else:
+                            console.print(f"[yellow]⚠[/yellow] No keys currently available")
+                        
+                        if data.get('max_SAE_ID_count', 0) > 0:
+                            console.print(f"[green]✓[/green] Multicast supported (up to {data.get('max_SAE_ID_count')} additional SAEs)")
+                        else:
+                            console.print(f"[yellow]⚠[/yellow] Multicast not supported")
+                            
+                    else:
+                        console.print(f"[red]✗[/red] KME status request failed: {response.status_code}")
+                        try:
+                            error_data = response.json()
+                            console.print(f"[red]✗[/red] Error: {error_data.get('message', 'Unknown error')}")
+                        except:
+                            console.print(f"[red]✗[/red] Response: {response.text}")
+                    
+                except Exception as e:
+                    console.print(f"[red]✗[/red] Error checking KME status: {e}")
                     
             elif command.lower() == 'request-keys':
                 # Call request-keys function directly with ETSI compliance
