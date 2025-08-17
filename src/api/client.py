@@ -166,7 +166,6 @@ class KMEClient:
             try:
                 return KeyResponse(
                     keys=data.get('keys', []),
-                    total_keys=data.get('total_keys', 0),
                     easy_kms_certificate_extension=cert_ext
                 )
             except Exception as validation_error:
@@ -198,7 +197,6 @@ class KMEClient:
             try:
                 return KeyResponse(
                     keys=data.get('keys', []),
-                    total_keys=data.get('total_keys', 0),
                     easy_kms_certificate_extension=cert_ext
                 )
             except Exception as validation_error:
@@ -230,7 +228,6 @@ class KMEClient:
             try:
                 return KeyResponse(
                     keys=data.get('keys', []),
-                    total_keys=data.get('total_keys', 0),
                     easy_kms_certificate_extension=cert_ext
                 )
             except Exception as validation_error:
@@ -266,7 +263,6 @@ class KMEClient:
             try:
                 return KeyResponse(
                     keys=data.get('keys', []),
-                    total_keys=data.get('total_keys', 0),
                     easy_kms_certificate_extension=cert_ext
                 )
             except Exception as validation_error:

@@ -42,24 +42,18 @@ class CertificateExtension(BaseModel):
     ssl_cipher: str = Field(..., description="SSL cipher suite")
 
 
-class KeyContainer(BaseModel):
-    """Key container as defined in ETSI GS QKD 014."""
-    key_id: str = Field(..., description="Unique key identifier")
-    key_type: KeyType = Field(..., description="Type of key")
-    key_material: str = Field(..., description="Base64 encoded key material")
-    key_size: int = Field(..., description="Key size in bits")
-    creation_time: datetime = Field(..., description="Key creation timestamp")
-    expiry_time: Optional[datetime] = Field(None, description="Key expiry timestamp")
-    status: KeyStatus = Field(default=KeyStatus.AVAILABLE, description="Key status")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+class ETSIKey(BaseModel):
+    """ETSI GS QKD 014 Key format as specified in Section 6.3."""
+    key_ID: str = Field(..., description="ID of the key: UUID format")
+    key: str = Field(..., description="Key data encoded by base64")
+    key_ID_extension: Optional[Dict[str, Any]] = Field(None, description="(Option) for future use")
+    key_extension: Optional[Dict[str, Any]] = Field(None, description="(Option) for future use")
 
 
-class SpecKeyContainer(BaseModel):
-    """Specification key container with ETSI extensions."""
-    key_container: KeyContainer = Field(..., description="Key container")
-    easy_kms_certificate_extension: Optional[CertificateExtension] = Field(
-        None, description="Certificate extension for debugging"
-    )
+class ETSIKeyContainer(BaseModel):
+    """ETSI GS QKD 014 Key container format as specified in Section 6.3."""
+    keys: List[ETSIKey] = Field(..., description="Array of keys")
+    key_container_extension: Optional[Dict[str, Any]] = Field(None, description="(Option) for future use")
 
 
 class StatusSpec(BaseModel):
@@ -81,9 +75,8 @@ class KeyRequest(BaseModel):
 
 
 class KeyResponse(BaseModel):
-    """Key response specification."""
-    keys: List[SpecKeyContainer] = Field(..., description="List of key containers")
-    total_keys: int = Field(..., description="Total number of keys")
+    """Key response specification following ETSI GS QKD 014."""
+    keys: List[ETSIKey] = Field(..., description="List of keys as per ETSI specification")
     easy_kms_certificate_extension: Optional[CertificateExtension] = Field(
         None, description="Certificate extension for debugging"
     )

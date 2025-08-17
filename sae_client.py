@@ -96,26 +96,23 @@ def print_keys(keys, title="Available Keys"):
     
     table = Table(title=title)
     table.add_column("Key ID", style="cyan")
-    table.add_column("Type", style="green")
-    table.add_column("Size", style="yellow")
-    table.add_column("Status", style="magenta")
-    table.add_column("Created", style="white")
+    table.add_column("Key Material (Base64)", style="green")
+    table.add_column("Key ID Extension", style="yellow")
+    table.add_column("Key Extension", style="magenta")
     
     for key in keys:
-        # Handle both SpecKeyContainer and direct KeyContainer objects
-        if hasattr(key, 'key_container'):
-            # SpecKeyContainer format
-            key_container = key.key_container
-        else:
-            # Direct KeyContainer format
-            key_container = key
+        # Handle ETSI key format
+        key_id_ext = str(key.key_ID_extension) if key.key_ID_extension else "None"
+        key_ext = str(key.key_extension) if key.key_extension else "None"
+        
+        # Truncate key material for display
+        key_material = key.key[:32] + "..." if len(key.key) > 32 else key.key
         
         table.add_row(
-            key_container.key_id,
-            key_container.key_type.value if hasattr(key_container.key_type, 'value') else str(key_container.key_type),
-            str(key_container.key_size),
-            key_container.status.value if hasattr(key_container.status, 'value') else str(key_container.status),
-            key_container.creation_time.strftime("%Y-%m-%d %H:%M:%S")
+            key.key_ID,
+            key_material,
+            key_id_ext,
+            key_ext
         )
     
     console.print(table)
@@ -244,15 +241,10 @@ def request_keys(key_type, key_size, quantity, slave_sae_id, master_sae_id):
             
             progress.update(task, completed=True)
             
-            console.print(f"\n[green]✓[/green] Successfully received {response.total_keys} keys")
+            console.print(f"\n[green]✓[/green] Successfully received {len(response.keys)} keys")
             
             # Display key information
-            keys = []
-            for spec_key in response.keys:
-                key = spec_key.key_container
-                keys.append(key)
-            
-            print_keys(keys, f"Received {key_type.title()} Keys")
+            print_keys(response.keys, f"Received {key_type.title()} Keys")
             
         except Exception as e:
             progress.update(task, completed=True)
@@ -501,15 +493,10 @@ Available commands:
                         continue
                     
                     response = kme_client.request_encryption_keys_for_slave(slave_sae_id, 256, 1)
-                    console.print(f"\n[green]✓[/green] Successfully received {response.total_keys} keys")
+                    console.print(f"\n[green]✓[/green] Successfully received {len(response.keys)} keys")
                     
                     # Display key information
-                    keys = []
-                    for spec_key in response.keys:
-                        key = spec_key.key_container
-                        keys.append(key)
-                    
-                    print_keys(keys, "Received Encryption Keys")
+                    print_keys(response.keys, "Received Encryption Keys")
                     
                 except Exception as e:
                     console.print(f"[red]✗[/red] Error requesting keys: {e}")
