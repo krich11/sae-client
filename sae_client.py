@@ -349,6 +349,10 @@ def interactive():
         try:
             command = input(f"{config.sae_id}> ")
             
+            # Skip empty commands (just carriage return)
+            if not command.strip():
+                continue
+            
             if command.lower() in ['quit', 'exit', 'q']:
                 console.print("Goodbye!")
                 break
