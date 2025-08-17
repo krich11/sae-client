@@ -124,11 +124,15 @@ def print_keys(keys, title="Available Keys"):
         table.add_column("Size", style="yellow")
         table.add_column("Status", style="magenta")
         table.add_column("Source", style="blue")
+        table.add_column("Allowed SAE", style="magenta")
         table.add_column("Created", style="white")
         
         for key in keys:
             # Truncate key material for display
             key_material = key.key_material[:32] + "..." if len(key.key_material) > 32 else key.key_material
+            
+            # Get allowed SAE from metadata
+            allowed_sae = key.metadata.get('allowed_sae_id', 'N/A') if key.metadata else 'N/A'
             
             table.add_row(
                 key.key_id,
@@ -136,6 +140,7 @@ def print_keys(keys, title="Available Keys"):
                 str(key.key_size),
                 key.status.value if hasattr(key.status, 'value') else str(key.status),
                 key.source,
+                allowed_sae,
                 key.creation_time.strftime("%Y-%m-%d %H:%M:%S")
             )
     

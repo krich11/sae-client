@@ -72,7 +72,7 @@ class KeyManagementService:
             # Store received keys locally
             stored_keys = []
             for etsi_key in response.keys:
-                local_key = self._store_key_from_kme(etsi_key, key_type)
+                local_key = self._store_key_from_kme(etsi_key, key_type, slave_sae_id, master_sae_id)
                 stored_keys.append(local_key)
             
             self.logger.info(f"Successfully stored {len(stored_keys)} keys from KME")
@@ -82,29 +82,41 @@ class KeyManagementService:
             self.logger.error(f"Failed to request keys from KME: {e}")
             raise
     
-    def _store_key_from_kme(self, etsi_key: ETSIKey, key_type: KeyType) -> LocalKey:
+    def _store_key_from_kme(self, etsi_key: ETSIKey, key_type: KeyType, slave_sae_id: str = None, master_sae_id: str = None) -> LocalKey:
         """
         Store a key received from KME.
         
         Args:
             etsi_key: ETSI key from KME
             key_type: Type of key
+            slave_sae_id: Slave SAE ID allowed to request this key (for encryption keys)
+            master_sae_id: Master SAE ID that requested this key (for decryption keys)
             
         Returns:
             LocalKey: Stored key object
         """
+        # Determine the source and allowed SAE based on key type
+        if key_type == KeyType.ENCRYPTION:
+            source = f"kme:encryption_for_slave_{slave_sae_id}"
+            allowed_sae = slave_sae_id
+        else:
+            source = f"kme:decryption_from_master_{master_sae_id}"
+            allowed_sae = master_sae_id
+        
         local_key = LocalKey(
             key_id=etsi_key.key_ID,
             key_type=key_type,
             key_material=etsi_key.key,
             key_size=256,  # Default size, could be derived from key material
-            source="kme",
+            source=source,
             creation_time=datetime.now(),
             expiry_time=datetime.now() + timedelta(hours=24),
             status=KeyStatus.AVAILABLE,
             metadata={
                 'kme_response': etsi_key.dict(),
-                'stored_at': datetime.now().isoformat()
+                'stored_at': datetime.now().isoformat(),
+                'allowed_sae_id': allowed_sae,
+                'key_type_context': 'encryption_for_slave' if key_type == KeyType.ENCRYPTION else 'decryption_from_master'
             }
         )
         
