@@ -258,17 +258,103 @@ except Exception as e:
     print_status "Installation validation completed successfully"
 }
 
-# Function to create CSR for SAE
-create_sae_csr() {
-    print_header "Creating SAE Certificate Signing Request"
+# Function to get user input for certificate attributes
+get_certificate_attributes() {
+    print_status "Certificate Attributes Configuration"
+    echo ""
+    print_status "Please provide the following certificate attributes:"
+    echo ""
     
-    # Create certs/sae directory if it doesn't exist
-    mkdir -p certs/sae
+    # Get country
+    read -p "Country (2-letter code, e.g., US): " COUNTRY
+    COUNTRY=${COUNTRY:-US}
     
-    # Create OpenSSL config for SAE certificate
-    cat > certs/sae/sae_cert.conf << 'EOF'
+    # Get state/province
+    read -p "State/Province (e.g., California): " STATE
+    STATE=${STATE:-California}
+    
+    # Get city/locality
+    read -p "City/Locality (e.g., San Francisco): " CITY
+    CITY=${CITY:-San Francisco}
+    
+    # Get organization
+    read -p "Organization (e.g., SAE Client Lab): " ORGANIZATION
+    ORGANIZATION=${ORGANIZATION:-SAE Client Lab}
+    
+    # Get organizational unit
+    read -p "Organizational Unit (e.g., QKD): " ORG_UNIT
+    ORG_UNIT=${ORG_UNIT:-QKD}
+    
+    # Get common name
+    read -p "Common Name (e.g., SAE_CLIENT_001): " COMMON_NAME
+    COMMON_NAME=${COMMON_NAME:-SAE_CLIENT_001}
+    
+    # Get key size
+    read -p "Key size in bits (2048, 4096): " KEY_SIZE
+    KEY_SIZE=${KEY_SIZE:-2048}
+    
+    # Get validity days
+    read -p "Validity in days (365, 730): " VALIDITY_DAYS
+    VALIDITY_DAYS=${VALIDITY_DAYS:-365}
+    
+    # Get subject alternative names
+    echo ""
+    print_status "Subject Alternative Names (SANs):"
+    read -p "DNS names (comma-separated, e.g., localhost,sae-client.local): " DNS_NAMES
+    DNS_NAMES=${DNS_NAMES:-localhost,sae-client.local}
+    
+    read -p "IP addresses (comma-separated, e.g., 127.0.0.1): " IP_ADDRESSES
+    IP_ADDRESSES=${IP_ADDRESSES:-127.0.0.1}
+    
+    echo ""
+    print_status "Certificate attributes configured:"
+    echo "  Country: $COUNTRY"
+    echo "  State: $STATE"
+    echo "  City: $CITY"
+    echo "  Organization: $ORGANIZATION"
+    echo "  Organizational Unit: $ORG_UNIT"
+    echo "  Common Name: $COMMON_NAME"
+    echo "  Key Size: $KEY_SIZE bits"
+    echo "  Validity: $VALIDITY_DAYS days"
+    echo "  DNS Names: $DNS_NAMES"
+    echo "  IP Addresses: $IP_ADDRESSES"
+    echo ""
+}
+
+# Function to create OpenSSL config with user attributes
+create_openssl_config() {
+    local config_file="$1"
+    
+    # Parse DNS names and IP addresses
+    local dns_section=""
+    local ip_section=""
+    local dns_count=1
+    local ip_count=1
+    
+    # Process DNS names
+    IFS=',' read -ra DNS_ARRAY <<< "$DNS_NAMES"
+    for dns in "${DNS_ARRAY[@]}"; do
+        dns=$(echo "$dns" | xargs)  # trim whitespace
+        if [[ -n "$dns" ]]; then
+            dns_section="${dns_section}DNS.$dns_count = $dns"$'\n'
+            ((dns_count++))
+        fi
+    done
+    
+    # Process IP addresses
+    IFS=',' read -ra IP_ARRAY <<< "$IP_ADDRESSES"
+    for ip in "${IP_ARRAY[@]}"; do
+        ip=$(echo "$ip" | xargs)  # trim whitespace
+        if [[ -n "$ip" ]]; then
+            ip_section="${ip_section}IP.$ip_count = $ip"$'\n'
+            ((ip_count++))
+        fi
+    done
+    
+    # Create the OpenSSL configuration file
+    cat > "$config_file" << EOF
 [req]
-default_bits = 2048
+default_bits = $KEY_SIZE
 default_keyfile = sae.key
 distinguished_name = req_distinguished_name
 req_extensions = v3_req
@@ -276,12 +362,12 @@ prompt = no
 encrypt_key = no
 
 [req_distinguished_name]
-C = US
-ST = California
-L = San Francisco
-O = SAE Client Lab
-OU = QKD
-CN = SAE_CLIENT_001
+C = $COUNTRY
+ST = $STATE
+L = $CITY
+O = $ORGANIZATION
+OU = $ORG_UNIT
+CN = $COMMON_NAME
 
 [v3_req]
 basicConstraints = CA:FALSE
@@ -290,23 +376,42 @@ extendedKeyUsage = clientAuth
 subjectAltName = @alt_names
 
 [alt_names]
-DNS.1 = localhost
-DNS.2 = sae-client.local
-IP.1 = 127.0.0.1
+$dns_section$ip_section
 EOF
+}
 
+# Function to create CSR for SAE
+create_sae_csr() {
+    print_header "Creating SAE Certificate Signing Request"
+    
+    # Create certs/sae directory if it doesn't exist
+    mkdir -p certs/sae
+    
+    # Get user input for certificate attributes
+    get_certificate_attributes
+    
+    # Create OpenSSL config with user attributes
+    create_openssl_config "certs/sae/sae_cert.conf"
+    
     print_status "Creating SAE private key and CSR..."
+    print_status "Using key size: $KEY_SIZE bits"
+    print_status "Validity period: $VALIDITY_DAYS days"
     
     # Generate private key and CSR
     cd certs/sae
-    openssl req -new -newkey rsa:2048 -keyout sae.key -out sae.csr -config sae_cert.conf -nodes
+    openssl req -new -newkey rsa:$KEY_SIZE -keyout sae.key -out sae.csr -config sae_cert.conf -nodes
     
     if [ $? -eq 0 ]; then
         print_status "✓ SAE private key and CSR created successfully"
         print_status "Files created:"
-        echo "  - certs/sae/sae.key (private key)"
+        echo "  - certs/sae/sae.key (private key, $KEY_SIZE bits)"
         echo "  - certs/sae/sae.csr (certificate signing request)"
         echo "  - certs/sae/sae_cert.conf (OpenSSL configuration)"
+        echo ""
+        print_status "Certificate includes required SAE extensions:"
+        echo "  ✓ clientAuth extended key usage"
+        echo "  ✓ digitalSignature, keyEncipherment, keyAgreement key usage"
+        echo "  ✓ Subject Alternative Names (SANs)"
         echo ""
         print_status "Next steps for certificate:"
         echo "1. Submit the CSR (sae.csr) to your Certificate Authority"
