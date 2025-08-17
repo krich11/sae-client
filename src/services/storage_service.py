@@ -490,6 +490,36 @@ class StorageService:
             self.logger.error(f"Failed to cleanup old backups: {e}")
             return 0
     
+    def reset_database(self) -> bool:
+        """
+        Reset the database (delete all keys and recreate tables).
+        
+        Returns:
+            bool: True if reset successfully
+        """
+        try:
+            self.logger.warning("Resetting key database - all keys will be deleted!")
+            
+            # Close any existing connections
+            if hasattr(self, '_db_connection') and self._db_connection:
+                self._db_connection.close()
+                self._db_connection = None
+            
+            # Delete the database file
+            if self.db_file.exists():
+                self.db_file.unlink()
+                self.logger.info(f"Deleted database file: {self.db_file}")
+            
+            # Reinitialize the database
+            self._init_database()
+            self.logger.info("Database reset completed successfully")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to reset database: {e}")
+            return False
+
     def get_storage_statistics(self) -> Dict[str, Any]:
         """
         Get storage statistics.

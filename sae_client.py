@@ -33,6 +33,7 @@ AVAILABLE_COMMANDS = [
     'health',
     'request-keys', 
     'list-keys',
+    'reset-keys',
     'notify-slave',
     'request-from-master',
     'test-connection',
@@ -291,16 +292,54 @@ def list_keys():
         task = progress.add_task("Loading local keys...", total=None)
         
         try:
-            # TODO: Load keys from local storage
-            # For now, show empty list
-            keys = []
+            from src.services.key_service import key_service
+            available_keys = key_service.get_available_keys()
             
             progress.update(task, completed=True)
-            print_keys(keys, "Local Keys")
+            print_keys(available_keys, "Local Keys")
             
         except Exception as e:
             progress.update(task, completed=True)
             console.print(f"[red]✗[/red] Error loading keys: {e}")
+
+
+@cli.command()
+@click.option('--confirm', is_flag=True, help='Skip confirmation prompt')
+def reset_keys(confirm):
+    """Reset the key database (clear all stored keys)."""
+    if not confirm:
+        console.print("[yellow]Warning: This will permanently delete all stored keys![/yellow]")
+        if not click.confirm("Are you sure you want to reset the key database?"):
+            console.print("Operation cancelled.")
+            return
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console
+    ) as progress:
+        task = progress.add_task("Resetting key database...", total=None)
+        
+        try:
+            from src.services.key_service import key_service
+            from src.services.storage_service import storage_service
+            
+            # Get count of keys before deletion
+            key_count = len(key_service.get_available_keys())
+            
+            # Reset the database
+            storage_service.reset_database()
+            
+            # Reload keys in memory
+            key_service._load_keys()
+            
+            progress.update(task, completed=True)
+            console.print(f"[green]✓[/green] Successfully reset key database")
+            console.print(f"[green]✓[/green] Deleted {key_count} keys")
+            
+        except Exception as e:
+            progress.update(task, completed=True)
+            console.print(f"[red]✗[/red] Error resetting key database: {e}")
 
 
 @cli.command()
@@ -540,6 +579,33 @@ Available commands:
                     
                 except Exception as e:
                     console.print(f"[red]✗[/red] Error listing keys: {e}")
+                    
+            elif command.lower() == 'reset-keys':
+                # Call reset-keys function directly
+                try:
+                    console.print("[yellow]Warning: This will permanently delete all stored keys![/yellow]")
+                    confirm = input("Are you sure you want to reset the key database? (yes/no): ").strip().lower()
+                    
+                    if confirm in ['yes', 'y']:
+                        from src.services.key_service import key_service
+                        from src.services.storage_service import storage_service
+                        
+                        # Get count of keys before deletion
+                        key_count = len(key_service.get_available_keys())
+                        
+                        # Reset the database
+                        if storage_service.reset_database():
+                            # Reload keys in memory
+                            key_service._load_keys()
+                            console.print(f"[green]✓[/green] Successfully reset key database")
+                            console.print(f"[green]✓[/green] Deleted {key_count} keys")
+                        else:
+                            console.print(f"[red]✗[/red] Failed to reset key database")
+                    else:
+                        console.print("Operation cancelled.")
+                        
+                except Exception as e:
+                    console.print(f"[red]✗[/red] Error resetting key database: {e}")
                     
             elif command.lower() == 'test-connection':
                 # Call test-connection function directly
