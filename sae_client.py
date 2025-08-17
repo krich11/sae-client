@@ -320,7 +320,7 @@ def interactive():
             if command.lower() in ['quit', 'exit', 'q']:
                 console.print("Goodbye!")
                 break
-            elif command.lower() == 'help':
+            elif command.lower() in ['help', '?']:
                 console.print("""
 Available commands:
   status              - Show SAE status
@@ -330,7 +330,7 @@ Available commands:
   request-from-master - Request keys from master (Slave mode)
   test-connection     - Test KME connection
   test-menu           - Test Easy-KME server routes
-  help                - Show this help
+  help, ?             - Show this help
   quit                - Exit interactive mode
                 """)
             elif command.lower() == 'status':
