@@ -121,6 +121,16 @@ class KMEClient:
             self.logger.error(f"Failed to get KME health: {e}")
             raise
     
+    def get_root_info(self) -> dict:
+        """Get KME server root endpoint information."""
+        try:
+            response = self._make_request('GET', '/')
+            data = response.json()
+            return data
+        except Exception as e:
+            self.logger.error(f"Failed to get KME root info: {e}")
+            raise
+    
     def request_encryption_keys(self, key_size: int = 256, quantity: int = 1) -> KeyResponse:
         """Request encryption keys from KME."""
         return self._request_keys(KeyType.ENCRYPTION, key_size, quantity)

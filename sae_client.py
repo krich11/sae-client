@@ -115,8 +115,9 @@ def health():
         task = progress.add_task("Checking SAE health...", total=None)
         
         try:
-            # Get KME server health
+            # Get KME server health and root info
             kme_health = kme_client.get_health()
+            kme_root_info = kme_client.get_root_info()
             
             # Get key statistics
             from src.services.key_service import key_service
@@ -161,11 +162,14 @@ def health():
             # Print SAE Status
             print_status(sae_status)
             
-            # Show KME health status
-            console.print(f"\n[bold blue]KME Server Health[/bold blue]")
+            # Show KME server information
+            console.print(f"\n[bold blue]KME Server Information[/bold blue]")
             console.print(f"[green]✓[/green] Status: {kme_health.status}")
-            console.print(f"[green]✓[/green] Version: {kme_health.version}")
-            console.print(f"[green]✓[/green] Timestamp: {kme_health.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+            console.print(f"[green]✓[/green] Version: {kme_root_info.get('version', 'unknown')}")
+            console.print(f"[green]✓[/green] Specification: {kme_root_info.get('specification', 'unknown')}")
+            console.print(f"[green]✓[/green] Message: {kme_root_info.get('message', 'unknown')}")
+            console.print(f"[green]✓[/green] Documentation: {kme_root_info.get('docs', 'unknown')}")
+            console.print(f"[green]✓[/green] Health Timestamp: {kme_health.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
             
         except Exception as e:
             progress.update(task, completed=True)
@@ -367,8 +371,9 @@ Available commands:
             elif command.lower() == 'health':
                 # Call health function directly
                 try:
-                    # Get KME server health
+                    # Get KME server health and root info
                     kme_health = kme_client.get_health()
+                    kme_root_info = kme_client.get_root_info()
                     
                     # Get key statistics
                     from src.services.key_service import key_service
@@ -411,11 +416,14 @@ Available commands:
                     # Print SAE Status
                     print_status(sae_status)
                     
-                    # Show KME health status
-                    console.print(f"\n[bold blue]KME Server Health[/bold blue]")
+                    # Show KME server information
+                    console.print(f"\n[bold blue]KME Server Information[/bold blue]")
                     console.print(f"[green]✓[/green] Status: {kme_health.status}")
-                    console.print(f"[green]✓[/green] Version: {kme_health.version}")
-                    console.print(f"[green]✓[/green] Timestamp: {kme_health.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+                    console.print(f"[green]✓[/green] Version: {kme_root_info.get('version', 'unknown')}")
+                    console.print(f"[green]✓[/green] Specification: {kme_root_info.get('specification', 'unknown')}")
+                    console.print(f"[green]✓[/green] Message: {kme_root_info.get('message', 'unknown')}")
+                    console.print(f"[green]✓[/green] Documentation: {kme_root_info.get('docs', 'unknown')}")
+                    console.print(f"[green]✓[/green] Health Timestamp: {kme_health.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
                     
                 except Exception as e:
                     console.print(f"[red]✗[/red] Error checking health: {e}")
