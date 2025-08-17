@@ -94,26 +94,50 @@ def print_keys(keys, title="Available Keys"):
         console.print(f"[yellow]No {title.lower()} found[/yellow]")
         return
     
-    table = Table(title=title)
-    table.add_column("Key ID", style="cyan")
-    table.add_column("Key Material (Base64)", style="green")
-    table.add_column("Key ID Extension", style="yellow")
-    table.add_column("Key Extension", style="magenta")
-    
-    for key in keys:
-        # Handle ETSI key format
-        key_id_ext = str(key.key_ID_extension) if key.key_ID_extension else "None"
-        key_ext = str(key.key_extension) if key.key_extension else "None"
+    # Check if we're dealing with ETSI keys or Local keys
+    if keys and hasattr(keys[0], 'key_ID'):
+        # ETSI key format
+        table = Table(title=title)
+        table.add_column("Key ID", style="cyan")
+        table.add_column("Key Material (Base64)", style="green")
+        table.add_column("Key ID Extension", style="yellow")
+        table.add_column("Key Extension", style="magenta")
         
-        # Truncate key material for display
-        key_material = key.key[:32] + "..." if len(key.key) > 32 else key.key
+        for key in keys:
+            key_id_ext = str(key.key_ID_extension) if key.key_ID_extension else "None"
+            key_ext = str(key.key_extension) if key.key_extension else "None"
+            
+            # Truncate key material for display
+            key_material = key.key[:32] + "..." if len(key.key) > 32 else key.key
+            
+            table.add_row(
+                key.key_ID,
+                key_material,
+                key_id_ext,
+                key_ext
+            )
+    else:
+        # Local key format
+        table = Table(title=title)
+        table.add_column("Key ID", style="cyan")
+        table.add_column("Type", style="green")
+        table.add_column("Size", style="yellow")
+        table.add_column("Status", style="magenta")
+        table.add_column("Source", style="blue")
+        table.add_column("Created", style="white")
         
-        table.add_row(
-            key.key_ID,
-            key_material,
-            key_id_ext,
-            key_ext
-        )
+        for key in keys:
+            # Truncate key material for display
+            key_material = key.key_material[:32] + "..." if len(key.key_material) > 32 else key.key_material
+            
+            table.add_row(
+                key.key_id,
+                key.key_type.value if hasattr(key.key_type, 'value') else str(key.key_type),
+                str(key.key_size),
+                key.status.value if hasattr(key.status, 'value') else str(key.status),
+                key.source,
+                key.creation_time.strftime("%Y-%m-%d %H:%M:%S")
+            )
     
     console.print(table)
 
@@ -492,8 +516,9 @@ Available commands:
                         console.print("[red]✗[/red] Slave SAE ID is required for encryption keys")
                         continue
                     
-                    response = kme_client.request_encryption_keys_for_slave(slave_sae_id, 256, 1)
-                    console.print(f"\n[green]✓[/green] Successfully received {len(response.keys)} keys")
+                    from src.services.key_service import key_service
+                    response = key_service.request_keys_from_kme(KeyType.ENCRYPTION, 256, 1, slave_sae_id=slave_sae_id)
+                    console.print(f"\n[green]✓[/green] Successfully received and stored {len(response.keys)} keys")
                     
                     # Display key information
                     print_keys(response.keys, "Received Encryption Keys")

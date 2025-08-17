@@ -17,7 +17,7 @@ from cryptography.exceptions import InvalidKey
 
 from ..config import config_manager, logger
 from ..models.api_models import (
-    KeyType, KeyStatus, LocalKey, SpecKeyContainer, KeyRequest, KeyResponse
+    KeyType, KeyStatus, LocalKey, ETSIKey, KeyRequest, KeyResponse
 )
 from .storage_service import StorageService
 
@@ -41,7 +41,7 @@ class KeyManagementService:
             self.logger.warning(f"Could not load existing keys: {e}")
             self.keys = {}
     
-    def request_keys_from_kme(self, key_type: KeyType, key_size: int, quantity: int = 1) -> KeyResponse:
+    def request_keys_from_kme(self, key_type: KeyType, key_size: int, quantity: int = 1, slave_sae_id: str = None, master_sae_id: str = None) -> KeyResponse:
         """
         Request keys from KME server.
         
@@ -49,6 +49,8 @@ class KeyManagementService:
             key_type: Type of keys to request (ENCRYPTION/DECRYPTION)
             key_size: Key size in bits
             quantity: Number of keys to request
+            slave_sae_id: Slave SAE ID for encryption keys
+            master_sae_id: Master SAE ID for decryption keys
             
         Returns:
             KeyResponse: Response containing requested keys
@@ -59,15 +61,18 @@ class KeyManagementService:
             self.logger.info(f"Requesting {quantity} {key_type.value} keys of size {key_size} from KME")
             
             if key_type == KeyType.ENCRYPTION:
-                response = kme_client.request_encryption_keys(key_size, quantity)
+                if not slave_sae_id:
+                    slave_sae_id = "SLAVE_001"  # Default fallback
+                response = kme_client.request_encryption_keys_for_slave(slave_sae_id, key_size, quantity)
             else:
-                response = kme_client.request_decryption_keys(key_size, quantity)
+                if not master_sae_id:
+                    master_sae_id = "MASTER_001"  # Default fallback
+                response = kme_client.request_decryption_keys_for_master(master_sae_id, key_size, quantity)
             
             # Store received keys locally
             stored_keys = []
-            for spec_key in response.keys:
-                key_container = spec_key.key_container
-                local_key = self._store_key_from_kme(key_container, key_type)
+            for etsi_key in response.keys:
+                local_key = self._store_key_from_kme(etsi_key, key_type)
                 stored_keys.append(local_key)
             
             self.logger.info(f"Successfully stored {len(stored_keys)} keys from KME")
@@ -77,37 +82,35 @@ class KeyManagementService:
             self.logger.error(f"Failed to request keys from KME: {e}")
             raise
     
-    def _store_key_from_kme(self, key_container: Dict[str, Any], key_type: KeyType) -> LocalKey:
+    def _store_key_from_kme(self, etsi_key: ETSIKey, key_type: KeyType) -> LocalKey:
         """
         Store a key received from KME.
         
         Args:
-            key_container: Key container from KME
+            etsi_key: ETSI key from KME
             key_type: Type of key
             
         Returns:
             LocalKey: Stored key object
         """
-        key_id = key_container.get('key_id', f"kme_{datetime.now().timestamp()}")
-        
         local_key = LocalKey(
-            key_id=key_id,
+            key_id=etsi_key.key_ID,
             key_type=key_type,
-            key_material=key_container.get('key_material', ''),
-            key_size=key_container.get('key_size', 256),
+            key_material=etsi_key.key,
+            key_size=256,  # Default size, could be derived from key material
             source="kme",
-            creation_time=datetime.fromisoformat(key_container.get('creation_time', datetime.now().isoformat())),
-            expiry_time=datetime.fromisoformat(key_container.get('expiry_time', (datetime.now() + timedelta(hours=24)).isoformat())) if key_container.get('expiry_time') else None,
+            creation_time=datetime.now(),
+            expiry_time=datetime.now() + timedelta(hours=24),
             status=KeyStatus.AVAILABLE,
             metadata={
-                'kme_response': key_container,
+                'kme_response': etsi_key.dict(),
                 'stored_at': datetime.now().isoformat()
             }
         )
         
-        self.keys[key_id] = local_key
+        self.keys[etsi_key.key_ID] = local_key
         self.storage.save_key(local_key)
-        self.logger.info(f"Stored key {key_id} from KME")
+        self.logger.info(f"Stored key {etsi_key.key_ID} from KME")
         
         return local_key
     
