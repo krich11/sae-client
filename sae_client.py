@@ -30,13 +30,13 @@ console = Console()
 
 def print_banner():
     """Print application banner."""
-    console.print("[bold blue]╔══════════════════════════════════════════════════════════════╗[/bold blue]")
-    console.print("[bold blue]║                    SAE Client v1.0.0                        ║[/bold blue]")
-    console.print("[bold blue]║              ETSI GS QKD 014 Compliant Client               ║[/bold blue]")
-    console.print("[bold blue]║                                                              ║[/bold blue]")
-    console.print("[bold blue]║  Secure Application Entity (SAE) Client for Key Management  ║[/bold blue]")
-    console.print("[bold blue]║  Supports both Master and Slave operations                  ║[/bold blue]")
-    console.print("[bold blue]╚══════════════════════════════════════════════════════════════╝[/bold blue]")
+    console.print("[bold blue]┌──────────────────────────────────────────────────────────────┐[/bold blue]")
+    console.print("[bold blue]│                    SAE Client v1.0.0                        │[/bold blue]")
+    console.print("[bold blue]│              ETSI GS QKD 014 Compliant Client               │[/bold blue]")
+    console.print("[bold blue]│                                                              │[/bold blue]")
+    console.print("[bold blue]│  Secure Application Entity (SAE) Client for Key Management  │[/bold blue]")
+    console.print("[bold blue]│  Supports both Master and Slave operations                  │[/bold blue]")
+    console.print("[bold blue]└──────────────────────────────────────────────────────────────┘[/bold blue]")
 
 
 def print_status(status: SAEStatus):
