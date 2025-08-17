@@ -266,44 +266,44 @@ get_certificate_attributes() {
     echo ""
     
     # Get country
-    read -p "Country (2-letter code, e.g., US): " COUNTRY
+    read -e -p "Country (2-letter code, e.g., US): " COUNTRY
     COUNTRY=${COUNTRY:-US}
     
     # Get state/province
-    read -p "State/Province (e.g., California): " STATE
+    read -e -p "State/Province (e.g., California): " STATE
     STATE=${STATE:-California}
     
     # Get city/locality
-    read -p "City/Locality (e.g., San Francisco): " CITY
+    read -e -p "City/Locality (e.g., San Francisco): " CITY
     CITY=${CITY:-San Francisco}
     
     # Get organization
-    read -p "Organization (e.g., SAE Client Lab): " ORGANIZATION
+    read -e -p "Organization (e.g., SAE Client Lab): " ORGANIZATION
     ORGANIZATION=${ORGANIZATION:-SAE Client Lab}
     
     # Get organizational unit
-    read -p "Organizational Unit (e.g., QKD): " ORG_UNIT
+    read -e -p "Organizational Unit (e.g., QKD): " ORG_UNIT
     ORG_UNIT=${ORG_UNIT:-QKD}
     
     # Get common name
-    read -p "Common Name (e.g., SAE_CLIENT_001): " COMMON_NAME
+    read -e -p "Common Name (e.g., SAE_CLIENT_001): " COMMON_NAME
     COMMON_NAME=${COMMON_NAME:-SAE_CLIENT_001}
     
     # Get key size
-    read -p "Key size in bits (2048, 4096): " KEY_SIZE
+    read -e -p "Key size in bits (2048, 4096): " KEY_SIZE
     KEY_SIZE=${KEY_SIZE:-2048}
     
     # Get validity days
-    read -p "Validity in days (365, 730): " VALIDITY_DAYS
+    read -e -p "Validity in days (365, 730): " VALIDITY_DAYS
     VALIDITY_DAYS=${VALIDITY_DAYS:-365}
     
     # Get subject alternative names
     echo ""
     print_status "Subject Alternative Names (SANs):"
-    read -p "DNS names (comma-separated, e.g., localhost,sae-client.local): " DNS_NAMES
+    read -e -p "DNS names (comma-separated, e.g., localhost,sae-client.local): " DNS_NAMES
     DNS_NAMES=${DNS_NAMES:-localhost,sae-client.local}
     
-    read -p "IP addresses (comma-separated, e.g., 127.0.0.1): " IP_ADDRESSES
+    read -e -p "IP addresses (comma-separated, e.g., 127.0.0.1): " IP_ADDRESSES
     IP_ADDRESSES=${IP_ADDRESSES:-127.0.0.1}
     
     echo ""
