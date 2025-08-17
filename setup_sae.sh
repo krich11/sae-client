@@ -258,6 +258,70 @@ except Exception as e:
     print_status "Installation validation completed successfully"
 }
 
+# Function to create CSR for SAE
+create_sae_csr() {
+    print_header "Creating SAE Certificate Signing Request"
+    
+    # Create certs/sae directory if it doesn't exist
+    mkdir -p certs/sae
+    
+    # Create OpenSSL config for SAE certificate
+    cat > certs/sae/sae_cert.conf << 'EOF'
+[req]
+default_bits = 2048
+default_keyfile = sae.key
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+prompt = no
+encrypt_key = no
+
+[req_distinguished_name]
+C = US
+ST = California
+L = San Francisco
+O = SAE Client Lab
+OU = QKD
+CN = SAE_CLIENT_001
+
+[v3_req]
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature, keyEncipherment, keyAgreement
+extendedKeyUsage = clientAuth
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = localhost
+DNS.2 = sae-client.local
+IP.1 = 127.0.0.1
+EOF
+
+    print_status "Creating SAE private key and CSR..."
+    
+    # Generate private key and CSR
+    cd certs/sae
+    openssl req -new -newkey rsa:2048 -keyout sae.key -out sae.csr -config sae_cert.conf -nodes
+    
+    if [ $? -eq 0 ]; then
+        print_status "✓ SAE private key and CSR created successfully"
+        print_status "Files created:"
+        echo "  - certs/sae/sae.key (private key)"
+        echo "  - certs/sae/sae.csr (certificate signing request)"
+        echo "  - certs/sae/sae_cert.conf (OpenSSL configuration)"
+        echo ""
+        print_status "Next steps for certificate:"
+        echo "1. Submit the CSR (sae.csr) to your Certificate Authority"
+        echo "2. Once you receive the signed certificate, save it as 'sae.crt' in certs/sae/"
+        echo "3. Ensure the certificate has 'clientAuth' extended key usage"
+        echo "4. Update your .env file with the correct certificate paths"
+        echo ""
+    else
+        print_error "✗ Failed to create SAE private key and CSR"
+        return 1
+    fi
+    
+    cd ../..
+}
+
 # Function to show next steps
 show_next_steps() {
     print_header "Installation Complete!"
@@ -327,6 +391,37 @@ main() {
     # Validate installation
     if validate_installation; then
         show_next_steps
+        
+        # Ask about creating CSR
+        echo ""
+        print_status "Certificate Setup"
+        echo ""
+        read -p "Would you like to create a Certificate Signing Request (CSR) for your SAE client? (y/n): " -n 1 -r
+        echo ""
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            if create_sae_csr; then
+                echo ""
+                print_status "CSR creation completed successfully!"
+                echo ""
+                print_status "Summary of what was created:"
+                echo "  ✓ SAE private key: certs/sae/sae.key"
+                echo "  ✓ Certificate signing request: certs/sae/sae.csr"
+                echo "  ✓ OpenSSL configuration: certs/sae/sae_cert.conf"
+                echo ""
+                print_status "To complete certificate setup:"
+                echo "1. Submit sae.csr to your Certificate Authority"
+                echo "2. Save the signed certificate as certs/sae/sae.crt"
+                echo "3. Update your .env file with certificate paths"
+                echo "4. Test with: python sae_client.py test-connection"
+                echo ""
+            else
+                print_error "CSR creation failed. You can create certificates manually later."
+            fi
+        else
+            echo ""
+            print_status "Skipping CSR creation. You can create certificates manually when needed."
+        fi
     else
         print_error "Installation validation failed"
         exit 1

@@ -37,6 +37,7 @@ class KMEClient:
             self.logger.info("mTLS certificates configured")
         else:
             self.logger.warning("SAE certificates not found, using basic authentication")
+            self.logger.warning(f"Cert:{cert_paths['sae_cert']}, {cert_paths['sae_key']}")
         
         # Configure CA certificate for server verification
         if Path(cert_paths['ca_cert']).exists():
