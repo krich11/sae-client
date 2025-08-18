@@ -579,9 +579,17 @@ def notify_slave(slave_id, key_id):
 
 @cli.command()
 @click.option('--master-id', required=True, help='Master SAE ID to request from')
-@click.option('--key-ids', help='Comma-separated list of key IDs to request')
+@click.option('--key-ids', help='Comma-separated list of key IDs to request (e.g., "key1,key2,key3")')
 def request_from_master(master_id, key_ids):
-    """Request keys from a master SAE using ETSI 'Get key with key IDs' method."""
+    """Request keys from a master SAE using ETSI 'Get key with key IDs' method.
+    
+    This command allows requesting multiple keys by providing a comma-separated list of key IDs.
+    The keys must have been previously shared by the master SAE for this slave SAE to access them.
+    
+    Examples:
+        python sae_client.py request-from-master --master-id SAE_001 --key-ids "key1,key2,key3"
+        python sae_client.py request-from-master --master-id SAE_001  # Prompts for key IDs
+    """
     
     # Parse key IDs
     if key_ids:
@@ -614,7 +622,10 @@ def request_from_master(master_id, key_ids):
             
             if success:
                 console.print(f"[green]✓[/green] Successfully requested {len(key_id_list)} keys from master {master_id}")
-                console.print(f"[green]✓[/green] Keys requested: {', '.join(key_id_list)}")
+                if len(key_id_list) == 1:
+                    console.print(f"[green]✓[/green] Key requested: {key_id_list[0]}")
+                else:
+                    console.print(f"[green]✓[/green] Keys requested: {', '.join(key_id_list)}")
             else:
                 console.print(f"[red]✗[/red] Failed to request keys from master {master_id}")
                 
@@ -975,7 +986,7 @@ Available commands:
                         continue
                     
                     # Prompt for key IDs
-                    key_ids_input = input("Enter key IDs to request (comma-separated): ").strip()
+                    key_ids_input = input("Enter key IDs to request (comma-separated, e.g., key1,key2,key3): ").strip()
                     if not key_ids_input:
                         console.print("[red]✗[/red] Key IDs are required for ETSI 'Get key with key IDs' method")
                         continue
@@ -992,7 +1003,10 @@ Available commands:
                     
                     if success:
                         console.print(f"[green]✓[/green] Successfully requested {len(key_id_list)} keys from master {master_sae_id}")
-                        console.print(f"[green]✓[/green] Keys requested: {', '.join(key_id_list)}")
+                        if len(key_id_list) == 1:
+                            console.print(f"[green]✓[/green] Key requested: {key_id_list[0]}")
+                        else:
+                            console.print(f"[green]✓[/green] Keys requested: {', '.join(key_id_list)}")
                     else:
                         console.print(f"[red]✗[/red] Failed to request keys from master {master_sae_id}")
                         
