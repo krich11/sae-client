@@ -324,11 +324,26 @@ class SlaveNotificationService(NotificationService):
             # URL: https://{KME_hostname}/api/v1/keys/{master_SAE_ID}/dec_keys
             from ..config import config_manager
             kme_url = config_manager.get_kme_url(f"/api/v1/keys/{master_id}/dec_keys")
+            
+            # Debug logging for KME requests
+            if config_manager.config.debug_mode:
+                self.logger.info(f"KME REQUEST: POST {kme_url}")
+                self.logger.info(f"KME REQUEST JSON: {json.dumps(request_data, indent=2)}")
+            
             response = kme_client.session.post(
                 kme_url,
                 json=request_data,
                 timeout=config_manager.config.timeout
             )
+            
+            # Debug logging for KME responses
+            if config_manager.config.debug_mode:
+                self.logger.info(f"KME RESPONSE: {response.status_code} {kme_url}")
+                try:
+                    response_json = response.json()
+                    self.logger.info(f"KME RESPONSE JSON: {json.dumps(response_json, indent=2)}")
+                except:
+                    self.logger.info(f"KME RESPONSE TEXT: {response.text}")
             
             if response.status_code == 200:
                 # Parse the ETSI Key container response
