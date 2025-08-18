@@ -150,21 +150,6 @@ class ConfigManager:
             if hasattr(self.config, key):
                 setattr(self.config, key, value)
                 self.logger.info(f"Updated config: {key} = {value}")
-        
-        # Save changes to .env file
-        self.save_to_env()
-    
-    def save_to_env(self):
-        """Save current configuration to .env file."""
-        env_content = []
-        for field_name, field in self.config.__fields__.items():
-            value = getattr(self.config, field_name)
-            env_content.append(f"SAE_{field_name.upper()}={value}")
-        
-        with open(self.config_file, 'w') as f:
-            f.write('\n'.join(env_content))
-        
-        self.logger.info(f"Configuration saved to {self.config_file}")
 
 
 # Global configuration instance
