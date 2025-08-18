@@ -67,11 +67,12 @@ class StatusSpec(BaseModel):
 
 
 class KeyRequest(BaseModel):
-    """Key request specification."""
-    key_type: KeyType = Field(..., description="Requested key type")
-    key_size: int = Field(..., description="Requested key size")
-    quantity: int = Field(default=1, description="Number of keys requested")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Request metadata")
+    """ETSI GS QKD 014 Key request format as specified in Section 6.2."""
+    number: Optional[int] = Field(default=1, description="Number of keys requested, default value is 1")
+    size: Optional[int] = Field(None, description="Size of each key in bits, default value is defined as key_size in Status data format")
+    additional_slave_SAE_IDs: Optional[List[str]] = Field(None, description="Array of IDs of slave SAEs for key sharing")
+    extension_mandatory: Optional[List[Dict[str, Any]]] = Field(None, description="Array of extension parameters that KME shall handle")
+    extension_optional: Optional[List[Dict[str, Any]]] = Field(None, description="Array of extension parameters that KME may ignore")
 
 
 class KeyResponse(BaseModel):

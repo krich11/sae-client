@@ -169,14 +169,14 @@ class KMEClient:
     def _request_keys(self, key_type: KeyType, key_size: int, quantity: int) -> KeyResponse:
         """Request keys from KME server (legacy method)."""
         try:
+            # ETSI GS QKD 014 compliant request format
             request_data = KeyRequest(
-                key_type=key_type,
-                key_size=key_size,
-                quantity=quantity
+                number=quantity,
+                size=key_size
             )
             
             endpoint = '/enc_keys' if key_type == KeyType.ENCRYPTION else '/dec_keys'
-            response = self._make_request('POST', endpoint, json=request_data.dict())
+            response = self._make_request('POST', endpoint, json=request_data.dict(exclude_none=True))
             data = response.json()
             
             # Parse certificate extension
@@ -199,15 +199,15 @@ class KMEClient:
     def _request_keys_for_slave(self, slave_sae_id: str, key_type: KeyType, key_size: int, quantity: int) -> KeyResponse:
         """Request keys from KME server for a specific slave SAE (ETSI compliant)."""
         try:
+            # ETSI GS QKD 014 compliant request format
             request_data = KeyRequest(
-                key_type=key_type,
-                key_size=key_size,
-                quantity=quantity
+                number=quantity,
+                size=key_size
             )
             
             # ETSI compliant endpoint: /api/v1/keys/{slave_SAE_ID}/enc_keys
             endpoint = f'/api/v1/keys/{slave_sae_id}/enc_keys'
-            response = self._make_request('POST', endpoint, json=request_data.dict())
+            response = self._make_request('POST', endpoint, json=request_data.dict(exclude_none=True))
             data = response.json()
             
             # Parse certificate extension
@@ -230,15 +230,15 @@ class KMEClient:
     def _request_keys_for_master(self, master_sae_id: str, key_type: KeyType, key_size: int, quantity: int) -> KeyResponse:
         """Request keys from KME server for a specific master SAE (ETSI compliant)."""
         try:
+            # ETSI GS QKD 014 compliant request format
             request_data = KeyRequest(
-                key_type=key_type,
-                key_size=key_size,
-                quantity=quantity
+                number=quantity,
+                size=key_size
             )
             
             # ETSI compliant endpoint: /api/v1/keys/{master_SAE_ID}/dec_keys
             endpoint = f'/api/v1/keys/{master_sae_id}/dec_keys'
-            response = self._make_request('POST', endpoint, json=request_data.dict())
+            response = self._make_request('POST', endpoint, json=request_data.dict(exclude_none=True))
             data = response.json()
             
             # Parse certificate extension
