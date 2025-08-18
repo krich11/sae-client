@@ -1441,15 +1441,27 @@ def test_all_routes():
 @cli.command()
 @click.option('--slave-id', required=True, help='Slave SAE ID to notify')
 @click.option('--key-ids', required=True, help='Comma-separated list of key IDs to notify about')
-@click.option('--slave-host', required=True, help='Slave SAE host/IP address')
-@click.option('--slave-port', default=5000, help='Slave SAE UDP port (default: 5000)')
+@click.option('--slave-host', help='Slave SAE host/IP address (optional if SAE is in known peers)')
+@click.option('--slave-port', help='Slave SAE UDP port (optional if SAE is in known peers)')
 @click.option('--rotation-delay', default=300, help='Rotation delay in seconds (default: 300)')
 def notify_slave_sync(slave_id, key_ids, slave_host, slave_port, rotation_delay):
     """Notify a slave SAE of available keys for synchronized rotation."""
     try:
         from src.services.udp_service import udp_service
         from src.utils.message_signer import message_signer
+        from src.services.sae_peers import sae_peers
         import time
+        
+        # Try to get slave address from known peers if not provided
+        if not slave_host or not slave_port:
+            peer_address = sae_peers.get_peer_address(slave_id)
+            if peer_address:
+                slave_host, slave_port = peer_address
+                console.print(f"[blue]Found slave {slave_id} in known peers: {slave_host}:{slave_port}[/blue]")
+            else:
+                console.print(f"[red]✗[/red] Slave {slave_id} not found in known peers")
+                console.print(f"[yellow]Use 'add-peer' command to add {slave_id} to known peers, or provide --slave-host and --slave-port[/yellow]")
+                return
         
         # Debug logging for sync notification
         if config_manager.config.debug_mode:
@@ -1674,6 +1686,144 @@ def test_persona(persona):
         
     except Exception as e:
         console.print(f"[red]✗[/red] Error testing persona: {e}")
+
+
+@cli.command()
+@click.option('--sae-id', required=True, help='SAE ID to add')
+@click.option('--host', required=True, help='SAE host/IP address')
+@click.option('--port', default=5000, help='SAE UDP port (default: 5000)')
+@click.option('--roles', help='Comma-separated list of roles (master,slave)')
+@click.option('--description', help='Optional description')
+def add_peer(sae_id, host, port, roles, description):
+    """Add a known SAE peer."""
+    try:
+        from src.services.sae_peers import sae_peers
+        
+        # Parse roles
+        role_list = None
+        if roles:
+            role_list = [role.strip() for role in roles.split(',') if role.strip()]
+        
+        # Debug logging
+        if config_manager.config.debug_mode:
+            console.print(f"[blue]DEBUG:[/blue] Adding SAE peer {sae_id}")
+            console.print(f"[blue]DEBUG:[/blue] Host: {host}")
+            console.print(f"[blue]DEBUG:[/blue] Port: {port}")
+            console.print(f"[blue]DEBUG:[/blue] Roles: {role_list}")
+            console.print(f"[blue]DEBUG:[/blue] Description: {description}")
+        
+        success = sae_peers.add_peer(sae_id, host, port, role_list, description)
+        
+        if success:
+            console.print(f"[green]✓[/green] Successfully added SAE peer {sae_id}")
+            console.print(f"[green]✓[/green] Address: {host}:{port}")
+            if role_list:
+                console.print(f"[green]✓[/green] Roles: {', '.join(role_list)}")
+        else:
+            console.print(f"[red]✗[/red] Failed to add SAE peer {sae_id}")
+            
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error adding SAE peer: {e}")
+
+
+@cli.command()
+@click.option('--sae-id', required=True, help='SAE ID to remove')
+def remove_peer(sae_id):
+    """Remove a known SAE peer."""
+    try:
+        from src.services.sae_peers import sae_peers
+        
+        # Debug logging
+        if config_manager.config.debug_mode:
+            console.print(f"[blue]DEBUG:[/blue] Removing SAE peer {sae_id}")
+        
+        success = sae_peers.remove_peer(sae_id)
+        
+        if success:
+            console.print(f"[green]✓[/green] Successfully removed SAE peer {sae_id}")
+        else:
+            console.print(f"[red]✗[/red] Failed to remove SAE peer {sae_id}")
+            
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error removing SAE peer: {e}")
+
+
+@cli.command()
+@click.option('--role', help='Filter by role (master, slave)')
+def list_peers(role):
+    """List known SAE peers."""
+    try:
+        from src.services.sae_peers import sae_peers
+        from rich.table import Table
+        
+        # Debug logging
+        if config_manager.config.debug_mode:
+            console.print(f"[blue]DEBUG:[/blue] Listing SAE peers")
+            console.print(f"[blue]DEBUG:[/blue] Role filter: {role}")
+        
+        peers = sae_peers.list_peers(role)
+        
+        if not peers:
+            role_text = f" with role '{role}'" if role else ""
+            console.print(f"[yellow]No known SAE peers{role_text}[/yellow]")
+            return
+        
+        # Create peers table
+        table = Table(title="Known SAE Peers")
+        table.add_column("SAE ID", style="cyan")
+        table.add_column("Host", style="green")
+        table.add_column("Port", style="blue")
+        table.add_column("Roles", style="yellow")
+        table.add_column("Description", style="magenta")
+        table.add_column("Added", style="dim")
+        
+        for peer in peers:
+            roles_text = ', '.join(peer.get('roles', []))
+            description = peer.get('description', '')
+            added_at = peer.get('added_at', '')
+            
+            table.add_row(
+                peer['sae_id'],
+                peer['host'],
+                str(peer['port']),
+                roles_text,
+                description,
+                added_at
+            )
+        
+        console.print(table)
+        console.print(f"[green]✓[/green] Found {len(peers)} known SAE peer(s)")
+        
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error listing SAE peers: {e}")
+
+
+@cli.command()
+@click.option('--sae-id', required=True, help='SAE ID to look up')
+def get_peer(sae_id):
+    """Get information about a specific SAE peer."""
+    try:
+        from src.services.sae_peers import sae_peers
+        
+        # Debug logging
+        if config_manager.config.debug_mode:
+            console.print(f"[blue]DEBUG:[/blue] Looking up SAE peer {sae_id}")
+        
+        peer_info = sae_peers.get_peer(sae_id)
+        
+        if peer_info:
+            console.print(f"[green]✓[/green] Found SAE peer {sae_id}")
+            console.print(f"[blue]Host:[/blue] {peer_info['host']}")
+            console.print(f"[blue]Port:[/blue] {peer_info['port']}")
+            console.print(f"[blue]Roles:[/blue] {', '.join(peer_info.get('roles', []))}")
+            if peer_info.get('description'):
+                console.print(f"[blue]Description:[/blue] {peer_info['description']}")
+            console.print(f"[blue]Added:[/blue] {peer_info.get('added_at', '')}")
+        else:
+            console.print(f"[yellow]SAE peer {sae_id} not found[/yellow]")
+            
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error looking up SAE peer: {e}")
 
 
 if __name__ == '__main__':

@@ -58,6 +58,9 @@ class SAEConfig(BaseSettings):
     max_message_size: int = Field(default=8192, description="Maximum UDP message size")
     signature_algorithm: str = Field(default="RSA-SHA256", description="Signature algorithm to use")
     
+    # SAE Peer Configuration
+    known_saes_file: str = Field(default="./data/known_saes.json", description="File containing known SAE peer information")
+    
     class Config:
         env_file = ".env"
         env_prefix = "SAE_"
