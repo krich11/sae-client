@@ -204,10 +204,11 @@ def print_keys(keys, title="Available Keys"):
                 console.print("─" * 80)
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.option('--config', '-c', help='Configuration file path')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
-def cli(config, verbose):
+@click.pass_context
+def cli(ctx, config, verbose):
     """SAE Client - ETSI GS QKD 014 Compliant Key Management Client."""
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -216,6 +217,10 @@ def cli(config, verbose):
         config_manager.config_file = config
     
     print_banner()
+    
+    # If no command is specified, run interactive mode
+    if ctx.invoked_subcommand is None:
+        interactive()
 
 
 @cli.command()
