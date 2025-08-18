@@ -134,6 +134,16 @@ class UDPService:
     def _process_message(self, data: bytes, addr: tuple):
         """Process received UDP message."""
         try:
+            # Debug logging for received message
+            if self.config.debug_mode:
+                self.logger.info(f"UDP MESSAGE RECEIVED: {addr}")
+                self.logger.info(f"UDP MESSAGE SIZE: {len(data)} bytes")
+                try:
+                    message_json = data.decode('utf-8')
+                    self.logger.info(f"UDP MESSAGE JSON: {json.dumps(json.loads(message_json), indent=2)}")
+                except:
+                    self.logger.info(f"UDP MESSAGE RAW: {data}")
+            
             # Parse message
             message_json = data.decode('utf-8')
             message_data = json.loads(message_json)
@@ -160,6 +170,13 @@ class UDPService:
                 self.logger.warning(f"Message verification failed from {signed_message.sender_sae_id}")
                 return
             
+            # Debug logging for verified message
+            if self.config.debug_mode:
+                self.logger.info(f"UDP MESSAGE VERIFIED: {message.message_type}")
+                self.logger.info(f"UDP MESSAGE SENDER: {signed_message.sender_sae_id}")
+                self.logger.info(f"UDP MESSAGE ID: {message.message_id}")
+                self.logger.info(f"UDP MESSAGE TIMESTAMP: {message.timestamp}")
+            
             # Handle message based on type
             handler = self.message_handlers.get(message.message_type)
             if handler:
@@ -185,6 +202,13 @@ class UDPService:
             bool: True if message sent successfully
         """
         try:
+            # Debug logging for outgoing message
+            if self.config.debug_mode:
+                self.logger.info(f"UDP MESSAGE SEND: {host}:{port}")
+                message_json = message.json()
+                self.logger.info(f"UDP MESSAGE JSON: {json.dumps(json.loads(message_json), indent=2)}")
+                self.logger.info(f"UDP MESSAGE SIZE: {len(message_json.encode('utf-8'))} bytes")
+            
             # Create temporary socket for sending
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as send_socket:
                 # Serialize message
@@ -209,6 +233,16 @@ class UDPService:
             self.logger.error("Invalid message type for key notification handler")
             return
         
+        # Debug logging for key notification
+        if self.config.debug_mode:
+            self.logger.info(f"SYNC KEY NOTIFICATION RECEIVED:")
+            self.logger.info(f"  Master SAE: {message.master_sae_id}")
+            self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+            self.logger.info(f"  Message ID: {message.message_id}")
+            self.logger.info(f"  Key IDs: {message.key_ids}")
+            self.logger.info(f"  Rotation Timestamp: {message.rotation_timestamp}")
+            self.logger.info(f"  Rotation Time: {time.ctime(message.rotation_timestamp)}")
+        
         self.logger.info(f"Received key notification from {message.master_sae_id}")
         self.logger.info(f"Available keys: {message.key_ids}")
         self.logger.info(f"Rotation timestamp: {message.rotation_timestamp}")
@@ -225,6 +259,13 @@ class UDPService:
         )
         self.sessions[session_id] = session
         
+        # Debug logging for session creation
+        if self.config.debug_mode:
+            self.logger.info(f"SYNC SESSION CREATED:")
+            self.logger.info(f"  Session ID: {session_id}")
+            self.logger.info(f"  State: {session.state}")
+            self.logger.info(f"  Created: {session.created_at}")
+        
         # Request keys from KME
         self._request_keys_from_kme(message)
         
@@ -239,6 +280,15 @@ class UDPService:
             self.logger.error("Invalid message type for key acknowledgment handler")
             return
         
+        # Debug logging for key acknowledgment
+        if self.config.debug_mode:
+            self.logger.info(f"SYNC KEY ACKNOWLEDGMENT RECEIVED:")
+            self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+            self.logger.info(f"  Master SAE: {message.master_sae_id}")
+            self.logger.info(f"  Original Message ID: {message.original_message_id}")
+            self.logger.info(f"  Selected Key ID: {message.selected_key_id}")
+            self.logger.info(f"  Status: {message.status}")
+        
         self.logger.info(f"Received key acknowledgment from {message.slave_sae_id}")
         self.logger.info(f"Selected key: {message.selected_key_id}")
         
@@ -249,6 +299,14 @@ class UDPService:
             session.state = SyncState.ACKNOWLEDGED
             session.selected_key_id = message.selected_key_id
             session.updated_at = datetime.now()
+            
+            # Debug logging for session update
+            if self.config.debug_mode:
+                self.logger.info(f"SYNC SESSION UPDATED:")
+                self.logger.info(f"  Session ID: {session_id}")
+                self.logger.info(f"  New State: {session.state}")
+                self.logger.info(f"  Selected Key: {session.selected_key_id}")
+                self.logger.info(f"  Updated: {session.updated_at}")
         
         # Send rotation confirmation
         self._send_rotation_confirmation(message, addr)
@@ -261,6 +319,15 @@ class UDPService:
             self.logger.error("Invalid message type for rotation confirmation handler")
             return
         
+        # Debug logging for rotation confirmation
+        if self.config.debug_mode:
+            self.logger.info(f"SYNC ROTATION CONFIRMATION RECEIVED:")
+            self.logger.info(f"  Master SAE: {message.master_sae_id}")
+            self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+            self.logger.info(f"  Original Message ID: {message.original_message_id}")
+            self.logger.info(f"  Rotation Timestamp: {message.rotation_timestamp}")
+            self.logger.info(f"  Rotation Time: {time.ctime(message.rotation_timestamp)}")
+        
         self.logger.info(f"Received rotation confirmation from {message.master_sae_id}")
         self.logger.info(f"Rotation timestamp: {message.rotation_timestamp}")
         
@@ -270,6 +337,14 @@ class UDPService:
             session = self.sessions[session_id]
             session.state = SyncState.CONFIRMED
             session.updated_at = datetime.now()
+            
+            # Debug logging for session confirmation
+            if self.config.debug_mode:
+                self.logger.info(f"SYNC SESSION CONFIRMED:")
+                self.logger.info(f"  Session ID: {session_id}")
+                self.logger.info(f"  Final State: {session.state}")
+                self.logger.info(f"  Rotation Time: {time.ctime(session.rotation_timestamp)}")
+                self.logger.info(f"  Updated: {session.updated_at}")
         
         # Schedule key rotation
         self._schedule_key_rotation(message)
@@ -378,6 +453,14 @@ class UDPService:
             current_time = int(datetime.now().timestamp())
             delay = message.rotation_timestamp - current_time
             
+            # Debug logging for rotation scheduling
+            if self.config.debug_mode:
+                self.logger.info(f"SYNC ROTATION SCHEDULING:")
+                self.logger.info(f"  Current Time: {current_time} ({time.ctime(current_time)})")
+                self.logger.info(f"  Rotation Time: {message.rotation_timestamp} ({time.ctime(message.rotation_timestamp)})")
+                self.logger.info(f"  Delay: {delay} seconds")
+                self.logger.info(f"  Delay: {delay/60:.1f} minutes")
+            
             if delay <= 0:
                 self.logger.warning("Rotation timestamp is in the past, rotating immediately")
                 self._execute_key_rotation(message)
@@ -389,12 +472,28 @@ class UDPService:
                 timer.daemon = True
                 timer.start()
                 
+                # Debug logging for timer creation
+                if self.config.debug_mode:
+                    self.logger.info(f"SYNC TIMER CREATED:")
+                    self.logger.info(f"  Timer ID: {id(timer)}")
+                    self.logger.info(f"  Scheduled: {time.ctime(time.time() + delay)}")
+                    self.logger.info(f"  Daemon: {timer.daemon}")
+                
         except Exception as e:
             self.logger.error(f"Error scheduling key rotation: {e}")
     
     def _execute_key_rotation(self, message):
         """Execute key rotation."""
         try:
+            # Debug logging for key rotation execution
+            if self.config.debug_mode:
+                self.logger.info(f"SYNC KEY ROTATION EXECUTING:")
+                self.logger.info(f"  Master SAE: {message.master_sae_id}")
+                self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+                self.logger.info(f"  Original Message ID: {message.original_message_id}")
+                self.logger.info(f"  Execution Time: {datetime.now()}")
+                self.logger.info(f"  Scheduled Time: {time.ctime(message.rotation_timestamp)}")
+            
             self.logger.info("Executing key rotation")
             
             # Update session state
@@ -403,6 +502,15 @@ class UDPService:
                 session = self.sessions[session_id]
                 session.state = SyncState.ROTATING
                 session.updated_at = datetime.now()
+                
+                # Debug logging for session state update
+                if self.config.debug_mode:
+                    self.logger.info(f"SYNC SESSION ROTATING:")
+                    self.logger.info(f"  Session ID: {session_id}")
+                    self.logger.info(f"  State: {session.state}")
+                    self.logger.info(f"  Key IDs: {session.key_ids}")
+                    self.logger.info(f"  Selected Key: {session.selected_key_id}")
+                    self.logger.info(f"  Updated: {session.updated_at}")
             
             # Execute device-specific key rotation
             self._execute_device_rotation(message)
@@ -410,6 +518,12 @@ class UDPService:
             # Clean up session after rotation
             if session_id in self.sessions:
                 del self.sessions[session_id]
+                
+                # Debug logging for session cleanup
+                if self.config.debug_mode:
+                    self.logger.info(f"SYNC SESSION CLEANED UP:")
+                    self.logger.info(f"  Session ID: {session_id}")
+                    self.logger.info(f"  Cleanup Time: {datetime.now()}")
                 
         except Exception as e:
             self.logger.error(f"Error executing key rotation: {e}")

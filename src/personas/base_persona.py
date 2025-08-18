@@ -42,6 +42,14 @@ class BasePersona(ABC):
         Returns:
             bool: True if key was successfully pre-configured
         """
+        # Debug logging for key pre-configuration
+        if hasattr(self, 'config') and self.config.get('debug_mode', False):
+            self.logger.info(f"PERSONA PRE-CONFIGURE KEY:")
+            self.logger.info(f"  Persona: {self.__class__.__name__}")
+            self.logger.info(f"  Key ID: {key_id}")
+            self.logger.info(f"  Key Material Size: {len(key_material)} bytes")
+            self.logger.info(f"  Key Material (first 32 chars): {key_material[:32]}...")
+        
         pass
     
     @abstractmethod
@@ -56,6 +64,16 @@ class BasePersona(ABC):
         Returns:
             bool: True if key rotation was successful
         """
+        # Debug logging for key rotation
+        if hasattr(self, 'config') and self.config.get('debug_mode', False):
+            import time
+            self.logger.info(f"PERSONA ROTATE KEY:")
+            self.logger.info(f"  Persona: {self.__class__.__name__}")
+            self.logger.info(f"  Key ID: {key_id}")
+            self.logger.info(f"  Rotation Timestamp: {rotation_timestamp}")
+            self.logger.info(f"  Rotation Time: {time.ctime(rotation_timestamp)}")
+            self.logger.info(f"  Current Time: {time.ctime()}")
+        
         pass
     
     @abstractmethod
@@ -125,6 +143,15 @@ class BasePersona(ABC):
             if len(decoded) < 8 or len(decoded) > 64:
                 self.logger.warning(f"Key material size {len(decoded)} bytes is outside expected range")
                 return False
+            
+            # Debug logging for key validation
+            if hasattr(self, 'config') and self.config.get('debug_mode', False):
+                self.logger.info(f"PERSONA KEY VALIDATION:")
+                self.logger.info(f"  Persona: {self.__class__.__name__}")
+                self.logger.info(f"  Key Material Size: {len(key_material)} bytes")
+                self.logger.info(f"  Decoded Size: {len(decoded)} bytes")
+                self.logger.info(f"  Validation: PASSED")
+            
             return True
         except Exception as e:
             self.logger.error(f"Key material validation failed: {e}")

@@ -52,6 +52,15 @@ class MacsecPersona(BasePersona):
             bool: True if key was successfully pre-configured
         """
         try:
+            # Debug logging for MACsec pre-configure
+            if self.config.get('debug_mode', False):
+                self.logger.info(f"MACSEC PRE-CONFIGURE KEY:")
+                self.logger.info(f"  Interface: {self.config.get('interface')}")
+                self.logger.info(f"  Key ID: {key_id}")
+                self.logger.info(f"  Algorithm: {self.config.get('key_algorithm', 'aes-gcm-256')}")
+                self.logger.info(f"  Key Material Size: {len(key_material)} bytes")
+                self.logger.info(f"  Key Material (first 32 chars): {key_material[:32]}...")
+            
             # Validate key material
             if not self.validate_key_material(key_material):
                 self.log_operation('pre_configure', key_id, 'failed', 'Invalid key material')
@@ -69,6 +78,11 @@ class MacsecPersona(BasePersona):
                 '--key-material', key_material,
                 '--algorithm', key_algorithm
             ]
+            
+            # Debug logging for command
+            if self.config.get('debug_mode', False):
+                self.logger.info(f"MACSEC COMMAND:")
+                self.logger.info(f"  Command: {' '.join(cmd)}")
             
             # Execute command (commented out for safety)
             # result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -98,6 +112,16 @@ class MacsecPersona(BasePersona):
             bool: True if key rotation was successful
         """
         try:
+            # Debug logging for MACsec key rotation
+            if self.config.get('debug_mode', False):
+                import time
+                self.logger.info(f"MACSEC ROTATE KEY:")
+                self.logger.info(f"  Interface: {self.config.get('interface')}")
+                self.logger.info(f"  Key ID: {key_id}")
+                self.logger.info(f"  Rotation Timestamp: {rotation_timestamp}")
+                self.logger.info(f"  Rotation Time: {time.ctime(rotation_timestamp)}")
+                self.logger.info(f"  Current Time: {time.ctime()}")
+            
             interface = self.config.get('interface')
             
             # Example MACsec key rotation command
@@ -107,6 +131,11 @@ class MacsecPersona(BasePersona):
                 '--key-id', key_id,
                 '--timestamp', str(rotation_timestamp)
             ]
+            
+            # Debug logging for command
+            if self.config.get('debug_mode', False):
+                self.logger.info(f"MACSEC ROTATION COMMAND:")
+                self.logger.info(f"  Command: {' '.join(cmd)}")
             
             # Execute command (commented out for safety)
             # result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)

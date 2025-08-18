@@ -232,6 +232,11 @@ def debug():
         console.print("  • MD5 hashes of key ID + material")
         console.print("  • All KME request URLs and JSON data")
         console.print("  • All KME response JSON data")
+        console.print("  • All UDP synchronization messages")
+        console.print("  • Message signing and verification details")
+        console.print("  • Session state transitions")
+        console.print("  • Key rotation scheduling and execution")
+        console.print("  • Device persona operations")
     else:
         console.print("[green]✓[/green] Debug mode disabled")
 
@@ -1446,6 +1451,12 @@ def notify_slave_sync(slave_id, key_ids, slave_host, slave_port, rotation_delay)
         from src.utils.message_signer import message_signer
         import time
         
+        # Debug logging for sync notification
+        if config_manager.config.debug_mode:
+            console.print(f"[blue]DEBUG:[/blue] Notifying slave {slave_id} at {slave_host}:{slave_port}")
+            console.print(f"[blue]DEBUG:[/blue] Key IDs: {key_ids}")
+            console.print(f"[blue]DEBUG:[/blue] Rotation delay: {rotation_delay} seconds")
+        
         # Parse key IDs
         key_id_list = [kid.strip() for kid in key_ids.split(',') if kid.strip()]
         if not key_id_list:
@@ -1455,6 +1466,12 @@ def notify_slave_sync(slave_id, key_ids, slave_host, slave_port, rotation_delay)
         # Calculate rotation timestamp
         rotation_timestamp = int(time.time()) + rotation_delay
         
+        # Debug logging for timestamp calculation
+        if config_manager.config.debug_mode:
+            console.print(f"[blue]DEBUG:[/blue] Current time: {time.ctime()}")
+            console.print(f"[blue]DEBUG:[/blue] Rotation timestamp: {rotation_timestamp}")
+            console.print(f"[blue]DEBUG:[/blue] Rotation time: {time.ctime(rotation_timestamp)}")
+        
         # Create key notification message
         signed_message = message_signer.create_key_notification(
             key_ids=key_id_list,
@@ -1462,6 +1479,12 @@ def notify_slave_sync(slave_id, key_ids, slave_host, slave_port, rotation_delay)
             master_sae_id=config.sae_id,
             slave_sae_id=slave_id
         )
+        
+        # Debug logging for message creation
+        if config_manager.config.debug_mode:
+            console.print(f"[blue]DEBUG:[/blue] Created signed message")
+            console.print(f"[blue]DEBUG:[/blue] Message ID: {signed_message.payload[:50]}...")
+            console.print(f"[blue]DEBUG:[/blue] Signature size: {len(signed_message.signature)} bytes")
         
         # Send message
         success = udp_service.send_message(signed_message, slave_host, slave_port)
@@ -1485,6 +1508,12 @@ def start_sync_listener(port):
     try:
         from src.services.udp_service import udp_service
         
+        # Debug logging for listener startup
+        if config_manager.config.debug_mode:
+            console.print(f"[blue]DEBUG:[/blue] Starting UDP listener on port {port}")
+            console.print(f"[blue]DEBUG:[/blue] Debug mode enabled - will show detailed message logs")
+            console.print(f"[blue]DEBUG:[/blue] SAE ID: {config_manager.config.sae_id}")
+        
         console.print(f"[blue]Starting UDP listener on port {port}...[/blue]")
         
         success = udp_service.start_listener(port)
@@ -1492,6 +1521,12 @@ def start_sync_listener(port):
         if success:
             console.print(f"[green]✓[/green] UDP listener started on port {port}")
             console.print("[yellow]Press Ctrl+C to stop the listener[/yellow]")
+            
+            # Debug logging for listener status
+            if config_manager.config.debug_mode:
+                console.print(f"[blue]DEBUG:[/blue] Listener status: {'Running' if udp_service.is_running else 'Stopped'}")
+                console.print(f"[blue]DEBUG:[/blue] Socket: {udp_service.socket}")
+                console.print(f"[blue]DEBUG:[/blue] Thread: {udp_service.listener_thread}")
             
             try:
                 # Keep the listener running
@@ -1515,7 +1550,19 @@ def sync_status():
         from src.services.udp_service import udp_service
         from rich.table import Table
         
+        # Debug logging for sync status
+        if config_manager.config.debug_mode:
+            console.print(f"[blue]DEBUG:[/blue] Getting synchronization status")
+            console.print(f"[blue]DEBUG:[/blue] SAE ID: {config_manager.config.sae_id}")
+            console.print(f"[blue]DEBUG:[/blue] Debug mode: {config_manager.config.debug_mode}")
+        
         sessions = udp_service.get_sessions()
+        
+        # Debug logging for sessions
+        if config_manager.config.debug_mode:
+            console.print(f"[blue]DEBUG:[/blue] Found {len(sessions)} active sessions")
+            for session_id, session in sessions.items():
+                console.print(f"[blue]DEBUG:[/blue] Session {session_id[:8]}...: {session.state}")
         
         if not sessions:
             console.print("[yellow]No active synchronization sessions[/yellow]")
@@ -1550,6 +1597,12 @@ def sync_status():
         # Show listener status
         listener_status = "Running" if udp_service.is_running else "Stopped"
         console.print(f"\n[blue]UDP Listener Status:[/blue] {listener_status}")
+        
+        # Debug logging for listener details
+        if config_manager.config.debug_mode:
+            console.print(f"[blue]DEBUG:[/blue] Listener running: {udp_service.is_running}")
+            console.print(f"[blue]DEBUG:[/blue] Socket bound: {udp_service.socket is not None}")
+            console.print(f"[blue]DEBUG:[/blue] Thread alive: {udp_service.listener_thread.is_alive() if udp_service.listener_thread else False}")
         
     except Exception as e:
         console.print(f"[red]✗[/red] Error getting sync status: {e}")

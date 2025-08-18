@@ -106,6 +106,18 @@ class MessageSigner:
                 sender_sae_id=sae_id
             )
             
+            # Debug logging for message signing
+            if self.config.debug_mode:
+                self.logger.info(f"MESSAGE SIGNING:")
+                self.logger.info(f"  SAE ID: {sae_id}")
+                self.logger.info(f"  Message Type: {message.message_type}")
+                self.logger.info(f"  Message ID: {message.message_id}")
+                self.logger.info(f"  Payload Size: {len(message_json)} bytes")
+                self.logger.info(f"  Hash Size: {len(message_hash)} bytes")
+                self.logger.info(f"  Signature Size: {len(signature)} bytes")
+                self.logger.info(f"  Payload B64 Size: {len(payload_b64)} bytes")
+                self.logger.info(f"  Signature B64 Size: {len(signature_b64)} bytes")
+            
             self.logger.debug(f"Signed message {message.message_id} for SAE {sae_id}")
             return signed_message
             
@@ -125,6 +137,14 @@ class MessageSigner:
             BaseSyncMessage: The verified message, or None if verification fails
         """
         try:
+            # Debug logging for message verification
+            if self.config.debug_mode:
+                self.logger.info(f"MESSAGE VERIFICATION:")
+                self.logger.info(f"  Expected Sender: {expected_sender}")
+                self.logger.info(f"  Actual Sender: {signed_message.sender_sae_id}")
+                self.logger.info(f"  Payload Size: {len(signed_message.payload)} bytes")
+                self.logger.info(f"  Signature Size: {len(signed_message.signature)} bytes")
+            
             # Verify sender SAE ID
             if signed_message.sender_sae_id != expected_sender:
                 self.logger.warning(f"Sender SAE ID mismatch: expected {expected_sender}, got {signed_message.sender_sae_id}")
@@ -134,6 +154,12 @@ class MessageSigner:
             payload_bytes = base64.b64decode(signed_message.payload)
             signature_bytes = base64.b64decode(signed_message.signature)
             
+            # Debug logging for decoded data
+            if self.config.debug_mode:
+                self.logger.info(f"MESSAGE DECODING:")
+                self.logger.info(f"  Payload Bytes: {len(payload_bytes)} bytes")
+                self.logger.info(f"  Signature Bytes: {len(signature_bytes)} bytes")
+            
             # Verify signature
             if not self._verify_signature(payload_bytes, signature_bytes, signed_message.sender_sae_id):
                 self.logger.warning(f"Signature verification failed for message from {signed_message.sender_sae_id}")
@@ -142,6 +168,13 @@ class MessageSigner:
             # Parse the message
             message_json = payload_bytes.decode('utf-8')
             message_data = json.loads(message_json)
+            
+            # Debug logging for message parsing
+            if self.config.debug_mode:
+                self.logger.info(f"MESSAGE PARSING:")
+                self.logger.info(f"  Message Type: {message_data.get('message_type')}")
+                self.logger.info(f"  Message ID: {message_data.get('message_id')}")
+                self.logger.info(f"  Timestamp: {message_data.get('timestamp')}")
             
             # Create appropriate message object based on type
             message_type = message_data.get('message_type')
@@ -160,6 +193,13 @@ class MessageSigner:
             else:
                 self.logger.warning(f"Unknown message type: {message_type}")
                 return None
+            
+            # Debug logging for successful verification
+            if self.config.debug_mode:
+                self.logger.info(f"MESSAGE VERIFICATION SUCCESS:")
+                self.logger.info(f"  Message ID: {message.message_id}")
+                self.logger.info(f"  Sender: {signed_message.sender_sae_id}")
+                self.logger.info(f"  Type: {message.message_type}")
             
             self.logger.debug(f"Verified message {message.message_id} from {signed_message.sender_sae_id}")
             return message
