@@ -103,7 +103,7 @@ class KMEClient:
             return None
     
     def get_status(self) -> StatusSpec:
-        """Get KME server status."""
+        """Get KME server status (legacy method)."""
         try:
             response = self._make_request('GET', '/status')
             data = response.json()
@@ -119,6 +119,24 @@ class KMEClient:
             )
         except Exception as e:
             self.logger.error(f"Failed to get KME status: {e}")
+            raise
+    
+    def get_etsi_status(self, slave_sae_id: str) -> dict:
+        """Get ETSI GS QKD 014 status for a specific slave SAE."""
+        try:
+            # ETSI compliant endpoint: /api/v1/keys/{slave_SAE_ID}/status
+            endpoint = f'/api/v1/keys/{slave_sae_id}/status'
+            response = self._make_request('GET', endpoint)
+            data = response.json()
+            
+            # Debug logging for ETSI status
+            if self.config.debug_mode:
+                import json
+                self.logger.info(f"ETSI STATUS RESPONSE: {json.dumps(data, indent=2)}")
+            
+            return data
+        except Exception as e:
+            self.logger.error(f"Failed to get ETSI status for slave {slave_sae_id}: {e}")
             raise
     
     def get_health(self) -> StatusSpec:
