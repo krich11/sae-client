@@ -156,6 +156,12 @@ class UDPService:
             # Check for duplicate message
             if signed_message.payload in self.processed_message_ids:
                 self.logger.warning(f"Duplicate message ignored: {signed_message.sender_sae_id}")
+                if self.config.debug_mode:
+                    self._print_console_notification("DUPLICATE MESSAGE", {
+                        "From": signed_message.sender_sae_id,
+                        "Address": f"{addr[0]}:{addr[1]}",
+                        "Status": "⚠ IGNORED"
+                    }, is_warning=True)
                 return
             
             # Add to processed messages (with cleanup)
@@ -168,7 +174,24 @@ class UDPService:
             message = message_signer.verify_message(signed_message, signed_message.sender_sae_id)
             if not message:
                 self.logger.warning(f"Message verification failed from {signed_message.sender_sae_id}")
+                if self.config.debug_mode:
+                    self._print_console_notification("SIGNATURE VERIFICATION", {
+                        "From": signed_message.sender_sae_id,
+                        "Address": f"{addr[0]}:{addr[1]}",
+                        "Status": "✗ FAILED",
+                        "Reason": "Invalid signature or sender mismatch"
+                    }, is_error=True)
                 return
+            
+            # Console notification for signature verification success
+            if self.config.debug_mode:
+                self._print_console_notification("SIGNATURE VERIFICATION", {
+                    "From": signed_message.sender_sae_id,
+                    "Address": f"{addr[0]}:{addr[1]}",
+                    "Status": "✓ VALID",
+                    "Message Type": message.message_type,
+                    "Message ID": message.message_id[:8] + "..."
+                })
             
             # Debug logging for verified message
             if self.config.debug_mode:
@@ -183,11 +206,29 @@ class UDPService:
                 handler(message, addr)
             else:
                 self.logger.warning(f"No handler for message type: {message.message_type}")
+                if self.config.debug_mode:
+                    self._print_console_notification("UNKNOWN MESSAGE TYPE", {
+                        "From": signed_message.sender_sae_id,
+                        "Message Type": message.message_type,
+                        "Status": "⚠ UNHANDLED"
+                    }, is_warning=True)
                 
         except json.JSONDecodeError as e:
             self.logger.error(f"Invalid JSON in message from {addr}: {e}")
+            if self.config.debug_mode:
+                self._print_console_notification("MESSAGE PARSE ERROR", {
+                    "Address": f"{addr[0]}:{addr[1]}",
+                    "Error": "Invalid JSON format",
+                    "Status": "✗ FAILED"
+                }, is_error=True)
         except Exception as e:
             self.logger.error(f"Error processing message from {addr}: {e}")
+            if self.config.debug_mode:
+                self._print_console_notification("MESSAGE PROCESSING ERROR", {
+                    "Address": f"{addr[0]}:{addr[1]}",
+                    "Error": str(e),
+                    "Status": "✗ FAILED"
+                }, is_error=True)
     
     def send_message(self, message: SignedMessage, host: str, port: int) -> bool:
         """
@@ -247,6 +288,18 @@ class UDPService:
         self.logger.info(f"Available keys: {message.key_ids}")
         self.logger.info(f"Rotation timestamp: {message.rotation_timestamp}")
         
+        # Console notification for interactive mode
+        if self.config.debug_mode:
+            self._print_console_notification("KEY NOTIFICATION", {
+                "From": message.master_sae_id,
+                "To": message.slave_sae_id,
+                "Key IDs": ", ".join(message.key_ids),
+                "Rotation Time": time.ctime(message.rotation_timestamp),
+                "Message ID": message.message_id[:8] + "...",
+                "Signature": "✓ VALID",
+                "Address": f"{addr[0]}:{addr[1]}"
+            })
+        
         # Create or update session
         session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
         session = SyncSession(
@@ -292,6 +345,18 @@ class UDPService:
         self.logger.info(f"Received key acknowledgment from {message.slave_sae_id}")
         self.logger.info(f"Selected key: {message.selected_key_id}")
         
+        # Console notification for interactive mode
+        if self.config.debug_mode:
+            self._print_console_notification("KEY ACKNOWLEDGMENT", {
+                "From": message.slave_sae_id,
+                "To": message.master_sae_id,
+                "Selected Key": message.selected_key_id or "None",
+                "Status": message.status,
+                "Original Message": message.original_message_id[:8] + "...",
+                "Signature": "✓ VALID",
+                "Address": f"{addr[0]}:{addr[1]}"
+            })
+        
         # Update session
         session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
         if session_id in self.sessions:
@@ -331,6 +396,17 @@ class UDPService:
         self.logger.info(f"Received rotation confirmation from {message.master_sae_id}")
         self.logger.info(f"Rotation timestamp: {message.rotation_timestamp}")
         
+        # Console notification for interactive mode
+        if self.config.debug_mode:
+            self._print_console_notification("ROTATION CONFIRMATION", {
+                "From": message.master_sae_id,
+                "To": message.slave_sae_id,
+                "Rotation Time": time.ctime(message.rotation_timestamp),
+                "Original Message": message.original_message_id[:8] + "...",
+                "Signature": "✓ VALID",
+                "Address": f"{addr[0]}:{addr[1]}"
+            })
+        
         # Update session
         session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
         if session_id in self.sessions:
@@ -359,6 +435,18 @@ class UDPService:
         
         self.logger.error(f"Received error from {message.master_sae_id}: {message.error_message}")
         self.logger.error(f"Error code: {message.error_code}")
+        
+        # Console notification for interactive mode
+        if self.config.debug_mode:
+            self._print_console_notification("ERROR MESSAGE", {
+                "From": message.master_sae_id,
+                "To": message.slave_sae_id,
+                "Error Code": message.error_code,
+                "Error Message": message.error_message,
+                "Original Message": message.original_message_id[:8] + "..." if message.original_message_id else "None",
+                "Signature": "✓ VALID",
+                "Address": f"{addr[0]}:{addr[1]}"
+            }, is_error=True)
         
         # Update session
         session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
@@ -580,6 +668,76 @@ class UDPService:
                 
         except Exception as e:
             self.logger.error(f"Error cleaning up old sessions: {e}")
+
+
+    def _print_console_notification(self, title: str, data: dict, is_error: bool = False, is_warning: bool = False):
+        """
+        Print a pretty console notification for interactive mode.
+        
+        Args:
+            title: Notification title
+            data: Dictionary of key-value pairs to display
+            is_error: Whether this is an error notification
+            is_warning: Whether this is a warning notification
+        """
+        try:
+            # Import rich components
+            from rich.console import Console
+            from rich.panel import Panel
+            from rich.text import Text
+            from rich.table import Table
+            from rich.align import Align
+            
+            console = Console()
+            
+            # Determine colors based on notification type
+            if is_error:
+                title_color = "red"
+                border_color = "red"
+                status_color = "red"
+            elif is_warning:
+                title_color = "yellow"
+                border_color = "yellow"
+                status_color = "yellow"
+            else:
+                title_color = "cyan"
+                border_color = "green"
+                status_color = "green"
+            
+            # Create notification table
+            table = Table(show_header=False, box=None, padding=(0, 1))
+            table.add_column("Key", style="bold white", width=15)
+            table.add_column("Value", style="white")
+            
+            # Add data rows
+            for key, value in data.items():
+                if key == "Status" and "✓" in str(value):
+                    table.add_row(key, f"[{status_color}]{value}[/{status_color}]")
+                elif key == "Status" and "✗" in str(value):
+                    table.add_row(key, f"[red]{value}[/red]")
+                elif key == "Status" and "⚠" in str(value):
+                    table.add_row(key, f"[yellow]{value}[/yellow]")
+                else:
+                    table.add_row(key, str(value))
+            
+            # Create the notification panel
+            notification_text = Text(f"🔔 {title}", style=f"bold {title_color}")
+            panel = Panel(
+                Align.center(table),
+                title=notification_text,
+                border_style=border_color,
+                padding=(0, 1)
+            )
+            
+            # Print the notification
+            console.print(panel)
+            
+        except Exception as e:
+            # Fallback to simple print if rich is not available
+            print(f"\n🔔 {title}")
+            for key, value in data.items():
+                print(f"  {key}: {value}")
+            print()
 
 
 # Global UDP service instance
