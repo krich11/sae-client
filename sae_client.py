@@ -99,9 +99,9 @@ def print_keys(keys, title="Available Keys"):
     # Check if we're dealing with ETSI keys or Local keys
     if keys and hasattr(keys[0], 'key_ID'):
         # ETSI key format
-        table = Table(title=title)
-        table.add_column("Key ID", style="cyan")
-        table.add_column("Key Material (Base64)", style="green")
+        table = Table(title=title, show_header=True, header_style="bold magenta")
+        table.add_column("Key ID", style="cyan", no_wrap=True, overflow="fold")
+        table.add_column("Key Material (Base64)", style="green", no_wrap=True, overflow="fold")
         table.add_column("Key ID Extension", style="yellow")
         table.add_column("Key Extension", style="magenta")
         
@@ -109,12 +109,9 @@ def print_keys(keys, title="Available Keys"):
             key_id_ext = str(key.key_ID_extension) if key.key_ID_extension else "None"
             key_ext = str(key.key_extension) if key.key_extension else "None"
             
-            # Truncate key material for display
-            key_material = key.key[:32] + "..." if len(key.key) > 32 else key.key
-            
             table.add_row(
-                key.key_ID,
-                key_material,
+                key.key_ID,  # Full key ID - no truncation
+                key.key,     # Full key material - no truncation
                 key_id_ext,
                 key_ext
             )
@@ -128,14 +125,29 @@ def print_keys(keys, title="Available Keys"):
                 # Add a row with full key material and MD5 hash
                 table.add_row(
                     f"[dim]Full Key Material:[/dim]",
-                    f"[dim]{key.key}[/dim]",
+                    f"[dim]{key.key}[/dim]",  # Full key material - no truncation
                     f"[dim]MD5: {md5_hash}[/dim]",
                     ""  # Empty for key extension column
                 )
+        
+        console.print(table)
+        
+        # Debug mode: Print full key details separately to ensure no truncation
+        if config_manager.config.debug_mode:
+            console.print("\n[bold yellow]DEBUG MODE - Full ETSI Key Details:[/bold yellow]")
+            for key in keys:
+                import hashlib
+                key_id_and_material = f"{key.key_ID}{key.key}"
+                md5_hash = hashlib.md5(key_id_and_material.encode()).hexdigest()
+                
+                console.print(f"\n[cyan]Key ID:[/cyan] {key.key_ID}")
+                console.print(f"[green]Key Material:[/green] {key.key}")
+                console.print(f"[yellow]MD5 Hash (ID+Material):[/yellow] {md5_hash}")
+                console.print("─" * 80)
     else:
         # Local key format
-        table = Table(title=title)
-        table.add_column("Key ID", style="cyan")
+        table = Table(title=title, show_header=True, header_style="bold magenta")
+        table.add_column("Key ID", style="cyan", no_wrap=True, overflow="fold")
         table.add_column("Type", style="green")
         table.add_column("Size", style="yellow")
         table.add_column("Status", style="magenta")
@@ -144,14 +156,11 @@ def print_keys(keys, title="Available Keys"):
         table.add_column("Created", style="white")
         
         for key in keys:
-            # Truncate key material for display
-            key_material = key.key_material[:32] + "..." if len(key.key_material) > 32 else key.key_material
-            
             # Get allowed SAE from the dedicated field or metadata
             allowed_sae = key.allowed_sae_id if hasattr(key, 'allowed_sae_id') and key.allowed_sae_id else (key.metadata.get('allowed_sae_id', 'N/A') if key.metadata else 'N/A')
             
             table.add_row(
-                key.key_id,
+                key.key_id,  # Full key ID - no truncation
                 key.key_type.value if hasattr(key.key_type, 'value') else str(key.key_type),
                 str(key.key_size),
                 key.status.value if hasattr(key.status, 'value') else str(key.status),
@@ -169,15 +178,30 @@ def print_keys(keys, title="Available Keys"):
                 # Add a row with full key material and MD5 hash
                 table.add_row(
                     f"[dim]Full Key Material:[/dim]",
-                    f"[dim]{key.key_material}[/dim]",
+                    f"[dim]{key.key_material}[/dim]",  # Full key material - no truncation
                     f"[dim]MD5: {md5_hash}[/dim]",
                     "",  # Empty for status column
                     "",  # Empty for source column
                     "",  # Empty for allowed SAE column
                     ""   # Empty for created column
                 )
-    
-    console.print(table)
+        
+        console.print(table)
+        
+        # Debug mode: Print full key details separately to ensure no truncation
+        if config_manager.config.debug_mode:
+            console.print("\n[bold yellow]DEBUG MODE - Full Key Details:[/bold yellow]")
+            for key in keys:
+                import hashlib
+                key_id_and_material = f"{key.key_id}{key.key_material}"
+                md5_hash = hashlib.md5(key_id_and_material.encode()).hexdigest()
+                
+                console.print(f"\n[cyan]Key ID:[/cyan] {key.key_id}")
+                console.print(f"[green]Key Material:[/green] {key.key_material}")
+                console.print(f"[yellow]MD5 Hash (ID+Material):[/yellow] {md5_hash}")
+                console.print(f"[blue]Size:[/blue] {key.key_size} bits")
+                console.print(f"[magenta]Allowed SAE:[/magenta] {key.allowed_sae_id if hasattr(key, 'allowed_sae_id') and key.allowed_sae_id else 'N/A'}")
+                console.print("─" * 80)
 
 
 @click.group()
