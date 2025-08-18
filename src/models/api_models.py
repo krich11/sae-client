@@ -133,6 +133,7 @@ class LocalKey(BaseModel):
     creation_time: datetime = Field(..., description="Creation timestamp")
     expiry_time: Optional[datetime] = Field(None, description="Expiry timestamp")
     status: KeyStatus = Field(default=KeyStatus.AVAILABLE, description="Key status")
+    allowed_sae_id: Optional[str] = Field(None, description="SAE ID allowed to use this key")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
     @validator('key_material')

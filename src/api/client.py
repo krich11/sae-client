@@ -61,8 +61,27 @@ class KMEClient:
         url = config_manager.get_kme_url(endpoint)
         
         try:
-            self.logger.debug(f"Making {method} request to {url}")
+            # Debug logging for KME requests
+            if self.config.debug_mode:
+                self.logger.info(f"KME REQUEST: {method} {url}")
+                if 'json' in kwargs:
+                    import json
+                    self.logger.info(f"KME REQUEST JSON: {json.dumps(kwargs['json'], indent=2)}")
+                if 'data' in kwargs:
+                    self.logger.info(f"KME REQUEST DATA: {kwargs['data']}")
+            
             response = self.session.request(method, url, **kwargs)
+            
+            # Debug logging for KME responses
+            if self.config.debug_mode:
+                self.logger.info(f"KME RESPONSE: {response.status_code} {url}")
+                try:
+                    response_json = response.json()
+                    import json
+                    self.logger.info(f"KME RESPONSE JSON: {json.dumps(response_json, indent=2)}")
+                except:
+                    self.logger.info(f"KME RESPONSE TEXT: {response.text}")
+            
             response.raise_for_status()
             return response
         except requests.exceptions.RequestException as e:

@@ -133,8 +133,8 @@ def print_keys(keys, title="Available Keys"):
             # Truncate key material for display
             key_material = key.key_material[:32] + "..." if len(key.key_material) > 32 else key.key_material
             
-            # Get allowed SAE from metadata
-            allowed_sae = key.metadata.get('allowed_sae_id', 'N/A') if key.metadata else 'N/A'
+            # Get allowed SAE from the dedicated field or metadata
+            allowed_sae = key.allowed_sae_id if hasattr(key, 'allowed_sae_id') and key.allowed_sae_id else (key.metadata.get('allowed_sae_id', 'N/A') if key.metadata else 'N/A')
             
             table.add_row(
                 key.key_id,
@@ -161,6 +161,24 @@ def cli(config, verbose):
         config_manager.config_file = config
     
     print_banner()
+
+
+@cli.command()
+def debug():
+    """Toggle debug mode on/off."""
+    current_debug = config_manager.config.debug_mode
+    new_debug = not current_debug
+    config_manager.update_config(debug_mode=new_debug)
+    
+    if new_debug:
+        console.print("[green]✓[/green] Debug mode enabled")
+        console.print("[yellow]Debug mode will show:")
+        console.print("  • Full key IDs and key material")
+        console.print("  • MD5 hashes of key ID + material")
+        console.print("  • All KME request URLs and JSON data")
+        console.print("  • All KME response JSON data")
+    else:
+        console.print("[green]✓[/green] Debug mode disabled")
 
 
 @cli.command()
@@ -608,6 +626,7 @@ Available commands:
   request-from-master - Request keys from master
   test-connection     - Test KME connection
   test-menu           - Test Easy-KME server routes
+  debug               - Toggle debug mode on/off
   help, ?             - Show this help
   quit                - Exit interactive mode
                 """)
@@ -897,6 +916,22 @@ Available commands:
                         
                 except Exception as e:
                     console.print(f"[red]✗[/red] Error notifying slave: {e}")
+                    
+            elif command.lower() == 'debug':
+                # Toggle debug mode
+                current_debug = config_manager.config.debug_mode
+                new_debug = not current_debug
+                config_manager.update_config(debug_mode=new_debug)
+                
+                if new_debug:
+                    console.print("[green]✓[/green] Debug mode enabled")
+                    console.print("[yellow]Debug mode will show:")
+                    console.print("  • Full key IDs and key material")
+                    console.print("  • MD5 hashes of key ID + material")
+                    console.print("  • All KME request URLs and JSON data")
+                    console.print("  • All KME response JSON data")
+                else:
+                    console.print("[green]✓[/green] Debug mode disabled")
                     
             elif command.lower() == 'test-menu':
                 test_menu()

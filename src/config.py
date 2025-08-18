@@ -43,6 +43,9 @@ class SAEConfig(BaseSettings):
     max_retries: int = Field(default=3, description="Maximum retry attempts")
     verify_ssl: bool = Field(default=True, description="Verify SSL certificates")
     
+    # Debug Settings
+    debug_mode: bool = Field(default=False, description="Enable debug mode for troubleshooting")
+    
     # Master/Slave Settings
     master_slave_port: int = Field(default=8080, description="Master/Slave communication port")
     notification_timeout: int = Field(default=10, description="Notification timeout in seconds")
@@ -147,6 +150,9 @@ class ConfigManager:
             if hasattr(self.config, key):
                 setattr(self.config, key, value)
                 self.logger.info(f"Updated config: {key} = {value}")
+        
+        # Save changes to .env file
+        self.save_to_env()
     
     def save_to_env(self):
         """Save current configuration to .env file."""

@@ -343,20 +343,39 @@ class SlaveNotificationService(NotificationService):
                     key_material = key_data.get('key')
                     
                     if key_id and key_material:
+                        # Calculate correct key size from base64 material
+                        import base64
+                        decoded_bytes = base64.b64decode(key_material)
+                        actual_key_size = len(decoded_bytes) * 8  # Convert bytes to bits
+                        
                         # Create local key record
                         local_key = LocalKey(
                             key_id=key_id,
                             key_type=KeyType.DECRYPTION,  # Keys from master are for decryption
                             key_material=key_material,
-                            key_size=len(key_material) * 6 // 8,  # Base64 to bits approximation
+                            key_size=actual_key_size,  # Correctly calculated key size
                             source=f"master:{master_id}",
                             creation_time=datetime.now(),
                             status=KeyStatus.AVAILABLE,
+                            allowed_sae_id=self.config.sae_id,  # Current SAE is allowed to use this key
                             metadata={
                                 'master_id': master_id,
-                                'etsi_response': key_data
+                                'etsi_response': key_data,
+                                'allowed_sae_id': self.config.sae_id
                             }
                         )
+                        
+                        # Debug logging for key details
+                        if config_manager.config.debug_mode:
+                            import hashlib
+                            key_id_and_material = f"{key_id}{key_material}"
+                            md5_hash = hashlib.md5(key_id_and_material.encode()).hexdigest()
+                            self.logger.info(f"DEBUG SLAVE KEY DETAILS:")
+                            self.logger.info(f"  Key ID: {key_id}")
+                            self.logger.info(f"  Key Material: {key_material}")
+                            self.logger.info(f"  Key Size: {actual_key_size} bits")
+                            self.logger.info(f"  Allowed SAE: {self.config.sae_id}")
+                            self.logger.info(f"  MD5 Hash (ID+Material): {md5_hash}")
                         
                         # Store the key
                         key_service.store_key(local_key)

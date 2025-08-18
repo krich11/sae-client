@@ -109,15 +109,21 @@ class KeyManagementService:
             source = f"kme:decryption_from_master_{master_sae_id}"
             allowed_sae = master_sae_id
         
+        # Calculate correct key size from base64 material
+        import base64
+        decoded_bytes = base64.b64decode(etsi_key.key)
+        actual_key_size = len(decoded_bytes) * 8  # Convert bytes to bits
+        
         local_key = LocalKey(
             key_id=etsi_key.key_ID,
             key_type=key_type,
             key_material=etsi_key.key,
-            key_size=256,  # Default size, could be derived from key material
+            key_size=actual_key_size,  # Correctly calculated key size
             source=source,
             creation_time=datetime.now(),
             expiry_time=datetime.now() + timedelta(hours=24),
             status=KeyStatus.AVAILABLE,
+            allowed_sae_id=allowed_sae,  # Set the allowed SAE ID
             metadata={
                 'kme_response': etsi_key.dict(),
                 'stored_at': datetime.now().isoformat(),
@@ -128,6 +134,18 @@ class KeyManagementService:
         
         self.logger.info(f"Adding key {etsi_key.key_ID} to memory")
         self.keys[etsi_key.key_ID] = local_key
+        
+        # Debug logging for key details
+        if config_manager.config.debug_mode:
+            import hashlib
+            key_id_and_material = f"{etsi_key.key_ID}{etsi_key.key}"
+            md5_hash = hashlib.md5(key_id_and_material.encode()).hexdigest()
+            self.logger.info(f"DEBUG KEY DETAILS:")
+            self.logger.info(f"  Key ID: {etsi_key.key_ID}")
+            self.logger.info(f"  Key Material: {etsi_key.key}")
+            self.logger.info(f"  Key Size: {actual_key_size} bits")
+            self.logger.info(f"  Allowed SAE: {allowed_sae}")
+            self.logger.info(f"  MD5 Hash (ID+Material): {md5_hash}")
         
         self.logger.info(f"Saving key {etsi_key.key_ID} to storage")
         save_result = self.storage.save_key(local_key)
