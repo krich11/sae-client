@@ -322,10 +322,12 @@ class SlaveNotificationService(NotificationService):
             
             # Make the ETSI-compliant API call
             # URL: https://{KME_hostname}/api/v1/keys/{master_SAE_ID}/dec_keys
+            from ..config import config_manager
+            kme_url = config_manager.get_kme_url(f"/api/v1/keys/{master_id}/dec_keys")
             response = kme_client.session.post(
-                f"{self.config.kme_base_url}/api/v1/keys/{master_id}/dec_keys",
+                kme_url,
                 json=request_data,
-                timeout=self.config.timeout
+                timeout=config_manager.config.timeout
             )
             
             if response.status_code == 200:
