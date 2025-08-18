@@ -71,9 +71,15 @@ class KeyManagementService:
             
             # Store received keys locally
             stored_keys = []
+            self.logger.info(f"Attempting to store {len(response.keys)} keys from KME response")
             for etsi_key in response.keys:
-                local_key = self._store_key_from_kme(etsi_key, key_type, slave_sae_id, master_sae_id)
-                stored_keys.append(local_key)
+                try:
+                    self.logger.info(f"Storing key {etsi_key.key_ID} from KME")
+                    local_key = self._store_key_from_kme(etsi_key, key_type, slave_sae_id, master_sae_id)
+                    stored_keys.append(local_key)
+                    self.logger.info(f"Successfully stored key {etsi_key.key_ID}")
+                except Exception as e:
+                    self.logger.error(f"Failed to store key {etsi_key.key_ID}: {e}")
             
             self.logger.info(f"Successfully stored {len(stored_keys)} keys from KME")
             return response
@@ -120,9 +126,15 @@ class KeyManagementService:
             }
         )
         
+        self.logger.info(f"Adding key {etsi_key.key_ID} to memory")
         self.keys[etsi_key.key_ID] = local_key
-        self.storage.save_key(local_key)
-        self.logger.info(f"Stored key {etsi_key.key_ID} from KME")
+        
+        self.logger.info(f"Saving key {etsi_key.key_ID} to storage")
+        save_result = self.storage.save_key(local_key)
+        if save_result:
+            self.logger.info(f"Successfully saved key {etsi_key.key_ID} to storage")
+        else:
+            self.logger.error(f"Failed to save key {etsi_key.key_ID} to storage")
         
         return local_key
     
@@ -158,6 +170,21 @@ class KeyManagementService:
         self.storage.save_key(local_key)
         self.logger.info(f"Stored key {key_id} from master {master_id}")
         
+        return local_key
+    
+    def store_key(self, local_key: LocalKey) -> LocalKey:
+        """
+        Store a LocalKey object directly.
+        
+        Args:
+            local_key: LocalKey object to store
+            
+        Returns:
+            LocalKey: Stored key object
+        """
+        self.keys[local_key.key_id] = local_key
+        self.storage.save_key(local_key)
+        self.logger.info(f"Stored key {local_key.key_id} directly")
         return local_key
     
     def get_key(self, key_id: str) -> Optional[LocalKey]:

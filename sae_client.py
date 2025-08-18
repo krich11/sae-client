@@ -329,6 +329,8 @@ def request_keys(key_type, key_size, quantity, slave_sae_id, master_sae_id):
         task = progress.add_task(f"Requesting {quantity} {key_type} keys...", total=None)
         
         try:
+            from src.services.key_service import key_service
+            
             if key_type == 'encryption':
                 # For encryption keys, we need slave SAE ID
                 if not slave_sae_id:
@@ -337,7 +339,7 @@ def request_keys(key_type, key_size, quantity, slave_sae_id, master_sae_id):
                         console.print("[red]✗[/red] Slave SAE ID is required for encryption keys")
                         return
                 
-                response = kme_client.request_encryption_keys_for_slave(slave_sae_id, key_size, quantity)
+                response = key_service.request_keys_from_kme(KeyType.ENCRYPTION, key_size, quantity, slave_sae_id=slave_sae_id)
             else:
                 # For decryption keys, we need master SAE ID
                 if not master_sae_id:
@@ -346,7 +348,7 @@ def request_keys(key_type, key_size, quantity, slave_sae_id, master_sae_id):
                         console.print("[red]✗[/red] Master SAE ID is required for decryption keys")
                         return
                 
-                response = kme_client.request_decryption_keys_for_master(master_sae_id, key_size, quantity)
+                response = key_service.request_keys_from_kme(KeyType.DECRYPTION, key_size, quantity, master_sae_id=master_sae_id)
             
             progress.update(task, completed=True)
             
