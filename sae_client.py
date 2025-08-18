@@ -528,6 +528,34 @@ def test_connection():
             console.print(f"[red]✗[/red] Connection test error: {e}")
 
 
+def check_certificate_files():
+    """Check if required certificate files exist and warn if missing."""
+    missing_files = []
+    
+    # Check SAE certificate
+    if not Path(config.sae_cert_path).exists():
+        missing_files.append(f"SAE Certificate: {config.sae_cert_path}")
+    
+    # Check SAE private key
+    if not Path(config.sae_key_path).exists():
+        missing_files.append(f"SAE Private Key: {config.sae_key_path}")
+    
+    # Check CA certificate
+    if not Path(config.ca_cert_path).exists():
+        missing_files.append(f"CA Certificate: {config.ca_cert_path}")
+    
+    if missing_files:
+        console.print("\n[bold red]⚠ CERTIFICATE WARNING ⚠[/bold red]")
+        console.print("[red]The following certificate files are missing:[/red]")
+        for file in missing_files:
+            console.print(f"  [red]• {file}[/red]")
+        console.print("\n[yellow]This may cause authentication failures when connecting to the KME.[/yellow]")
+        console.print("[yellow]Please ensure all certificates are properly configured before proceeding.[/yellow]")
+        console.print("[dim]You can run './setup_sae.sh' to create certificates if needed.[/dim]")
+        console.print()
+    
+    return len(missing_files) == 0
+
 @cli.command()
 def interactive():
     """Start interactive mode."""
@@ -546,6 +574,9 @@ def interactive():
         console.print("[dim]Tip: Press TAB for command autocomplete[/dim]")
     console.print()
     
+    # Check certificate files and warn if missing
+    check_certificate_files()
+    
     while True:
         try:
             command = input(f"{config.sae_id}> ")
@@ -563,8 +594,8 @@ Available commands:
   health              - Show SAE health and configuration
   request-keys        - Request keys from KME
   list-keys           - List local keys
-  notify-slave        - Notify slave of available key (Master mode)
-  request-from-master - Request keys from master (Slave mode)
+  notify-slave        - Notify slave of available key (Master role)
+  request-from-master - Request keys from master (Slave role)
   test-connection     - Test KME connection
   test-menu           - Test Easy-KME server routes
   help, ?             - Show this help
@@ -584,13 +615,13 @@ Available commands:
                     # Create SAE status
                     sae_status = SAEStatus(
                         sae_id=config.sae_id,
-                        mode=config.sae_mode,
+                        mode=config_manager.get_roles_display(),
                         status="active" if kme_health.status == "healthy" else "inactive",
                         available_keys=key_stats['available_keys'],
                         total_keys=key_stats['total_keys'],
                         last_activity=datetime.now(),
-                        connected_slaves=[] if config_manager.is_master_mode() else None,
-                        connected_master=None if config_manager.is_master_mode() else "MASTER_001"
+                        connected_slaves=[] if config_manager.is_master() else None,
+                        connected_master=None if config_manager.is_master() else "MASTER_001"
                     )
                     
                     # Print SAE Configuration
@@ -600,7 +631,8 @@ Available commands:
                     config_table.add_column("Value", style="green")
                     
                     config_table.add_row("SAE ID", config.sae_id)
-                    config_table.add_row("Mode", config.sae_mode)
+                    config_table.add_row("Roles", config_manager.get_roles_display())
+                    config_table.add_row("Mode (Legacy)", config.sae_mode)
                     config_table.add_row("KME Host", config.kme_host)
                     config_table.add_row("KME Port", str(config.kme_port))
                     config_table.add_row("KME Base URL", config.kme_base_url)

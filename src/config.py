@@ -6,7 +6,7 @@ Handles environment variables, certificate paths, and application settings.
 import os
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
@@ -16,7 +16,8 @@ class SAEConfig(BaseSettings):
     
     # SAE Identity
     sae_id: str = Field(default="SAE_001", description="SAE identifier")
-    sae_mode: str = Field(default="master", description="SAE mode: master or slave")
+    sae_mode: str = Field(default="master", description="SAE mode: master or slave (legacy)")
+    sae_roles: List[str] = Field(default=["master"], description="SAE roles: list of 'master' and/or 'slave'")
     
     # KME Server Configuration
     kme_host: str = Field(default="localhost", description="KME server host")
@@ -113,12 +114,32 @@ class ConfigManager:
         }
     
     def is_master_mode(self) -> bool:
-        """Check if SAE is in master mode."""
+        """Check if SAE is in master mode (legacy support)."""
         return self.config.sae_mode.lower() == "master"
     
     def is_slave_mode(self) -> bool:
-        """Check if SAE is in slave mode."""
+        """Check if SAE is in slave mode (legacy support)."""
         return self.config.sae_mode.lower() == "slave"
+    
+    def has_role(self, role: str) -> bool:
+        """Check if SAE has a specific role."""
+        return role.lower() in [r.lower() for r in self.config.sae_roles]
+    
+    def is_master(self) -> bool:
+        """Check if SAE has master role."""
+        return self.has_role("master")
+    
+    def is_slave(self) -> bool:
+        """Check if SAE has slave role."""
+        return self.has_role("slave")
+    
+    def get_roles(self) -> List[str]:
+        """Get list of SAE roles."""
+        return self.config.sae_roles
+    
+    def get_roles_display(self) -> str:
+        """Get roles as display string."""
+        return ", ".join(self.config.sae_roles)
     
     def update_config(self, **kwargs):
         """Update configuration values."""

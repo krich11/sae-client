@@ -143,7 +143,10 @@ The SAE client uses environment variables for configuration. The main settings a
 
 ### SAE Identity
 - `SAE_SAE_ID`: Unique SAE identifier (default: SAE_001)
-- `SAE_SAE_MODE`: Operation mode - master or slave (default: master)
+- `SAE_SAE_MODE`: Operation mode - master or slave (default: master, legacy)
+- `SAE_SAE_ROLES`: SAE roles - list of 'master' and/or 'slave' (default: ["master"])
+  - Supports multi-role scenarios (e.g., master to SAE_B, slave to SAE_C)
+  - Example: `SAE_SAE_ROLES=["master", "slave"]`
 
 ### KME Server
 - `SAE_KME_HOST`: KME server hostname (default: localhost)
