@@ -176,9 +176,9 @@ class KMEClient:
         """Request decryption keys from KME (legacy method)."""
         return self._request_keys(KeyType.DECRYPTION, key_size, quantity)
     
-    def request_encryption_keys_for_slave(self, slave_sae_id: str, key_size: int = 256, quantity: int = 1) -> KeyResponse:
+    def request_encryption_keys_for_slave(self, slave_sae_id: str, key_size: int = 256, quantity: int = 1, additional_slave_sae_ids: List[str] = None) -> KeyResponse:
         """Request encryption keys from KME for a specific slave SAE (ETSI compliant)."""
-        return self._request_keys_for_slave(slave_sae_id, KeyType.ENCRYPTION, key_size, quantity)
+        return self._request_keys_for_slave(slave_sae_id, KeyType.ENCRYPTION, key_size, quantity, additional_slave_sae_ids)
     
     def request_decryption_keys_for_master(self, master_sae_id: str, key_size: int = 256, quantity: int = 1) -> KeyResponse:
         """Request decryption keys from KME for a specific master SAE (ETSI compliant)."""
@@ -214,13 +214,14 @@ class KMEClient:
             self.logger.error(f"Failed to request {key_type} keys: {e}")
             raise
     
-    def _request_keys_for_slave(self, slave_sae_id: str, key_type: KeyType, key_size: int, quantity: int) -> KeyResponse:
+    def _request_keys_for_slave(self, slave_sae_id: str, key_type: KeyType, key_size: int, quantity: int, additional_slave_sae_ids: List[str] = None) -> KeyResponse:
         """Request keys from KME server for a specific slave SAE (ETSI compliant)."""
         try:
             # ETSI GS QKD 014 compliant request format
             request_data = KeyRequest(
                 number=quantity,
-                size=key_size
+                size=key_size,
+                additional_slave_SAE_IDs=additional_slave_sae_ids
             )
             
             # ETSI compliant endpoint: /api/v1/keys/{slave_SAE_ID}/enc_keys

@@ -386,16 +386,43 @@ def status(slave_id):
 @click.option('--key-type', type=click.Choice(['encryption', 'decryption']), default='encryption')
 @click.option('--key-size', default=256, help='Key size in bits')
 @click.option('--quantity', default=1, help='Number of keys to request')
-@click.option('--slave-sae-id', help='Slave SAE ID (required for encryption keys)')
+@click.option('--slave-sae-id', help='Slave SAE ID(s) - comma-separated list (first ID used for API call, rest as additional_slave_SAE_IDs)')
 @click.option('--master-sae-id', help='Master SAE ID (required for decryption keys)')
 def request_keys(key_type, key_size, quantity, slave_sae_id, master_sae_id):
     """Request keys from KME server."""
+    
+    # Prompt for number of keys if not provided
+    if quantity == 1:
+        quantity_input = input("Enter number of keys to request (default: 1): ").strip()
+        if quantity_input:
+            try:
+                quantity = int(quantity_input)
+                if quantity <= 0:
+                    console.print("[red]✗[/red] Number of keys must be positive")
+                    return
+            except ValueError:
+                console.print("[red]✗[/red] Invalid number of keys")
+                return
+    
+    # Prompt for key size if not provided
+    if key_size == 256:
+        key_size_input = input("Enter key size in bits (default: 256): ").strip()
+        if key_size_input:
+            try:
+                key_size = int(key_size_input)
+                if key_size <= 0:
+                    console.print("[red]✗[/red] Key size must be positive")
+                    return
+            except ValueError:
+                console.print("[red]✗[/red] Invalid key size")
+                return
+    
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         console=console
     ) as progress:
-        task = progress.add_task(f"Requesting {quantity} {key_type} keys...", total=None)
+        task = progress.add_task(f"Requesting {quantity} {key_type} keys of size {key_size} bits...", total=None)
         
         try:
             from src.services.key_service import key_service
@@ -403,12 +430,32 @@ def request_keys(key_type, key_size, quantity, slave_sae_id, master_sae_id):
             if key_type == 'encryption':
                 # For encryption keys, we need slave SAE ID
                 if not slave_sae_id:
-                    slave_sae_id = input("Enter slave SAE ID: ").strip()
+                    slave_sae_id = input("Enter slave SAE ID(s) - comma-separated list: ").strip()
                     if not slave_sae_id:
                         console.print("[red]✗[/red] Slave SAE ID is required for encryption keys")
                         return
                 
-                response = key_service.request_keys_from_kme(KeyType.ENCRYPTION, key_size, quantity, slave_sae_id=slave_sae_id)
+                # Parse comma-separated SAE IDs
+                sae_ids = [sae_id.strip() for sae_id in slave_sae_id.split(',') if sae_id.strip()]
+                if not sae_ids:
+                    console.print("[red]✗[/red] At least one slave SAE ID is required")
+                    return
+                
+                # Use first SAE ID for API call, rest as additional_slave_SAE_IDs
+                primary_slave_id = sae_ids[0]
+                additional_slave_ids = sae_ids[1:] if len(sae_ids) > 1 else None
+                
+                console.print(f"[blue]Primary slave SAE ID: {primary_slave_id}[/blue]")
+                if additional_slave_ids:
+                    console.print(f"[blue]Additional slave SAE IDs: {', '.join(additional_slave_ids)}[/blue]")
+                
+                response = key_service.request_keys_from_kme(
+                    KeyType.ENCRYPTION, 
+                    key_size, 
+                    quantity, 
+                    slave_sae_id=primary_slave_id,
+                    additional_slave_sae_ids=additional_slave_ids
+                )
             else:
                 # For decryption keys, we need master SAE ID
                 if not master_sae_id:
@@ -799,14 +846,60 @@ Available commands:
             elif command.lower() == 'request-keys':
                 # Call request-keys function directly with ETSI compliance
                 try:
-                    # Prompt for slave SAE ID for encryption keys
-                    slave_sae_id = input("Enter slave SAE ID: ").strip()
+                    # Prompt for number of keys
+                    quantity_input = input("Enter number of keys to request (default: 1): ").strip()
+                    quantity = 1
+                    if quantity_input:
+                        try:
+                            quantity = int(quantity_input)
+                            if quantity <= 0:
+                                console.print("[red]✗[/red] Number of keys must be positive")
+                                continue
+                        except ValueError:
+                            console.print("[red]✗[/red] Invalid number of keys")
+                            continue
+                    
+                    # Prompt for key size
+                    key_size_input = input("Enter key size in bits (default: 256): ").strip()
+                    key_size = 256
+                    if key_size_input:
+                        try:
+                            key_size = int(key_size_input)
+                            if key_size <= 0:
+                                console.print("[red]✗[/red] Key size must be positive")
+                                continue
+                        except ValueError:
+                            console.print("[red]✗[/red] Invalid key size")
+                            continue
+                    
+                    # Prompt for slave SAE ID(s) for encryption keys
+                    slave_sae_id = input("Enter slave SAE ID(s) - comma-separated list: ").strip()
                     if not slave_sae_id:
                         console.print("[red]✗[/red] Slave SAE ID is required for encryption keys")
                         continue
                     
+                    # Parse comma-separated SAE IDs
+                    sae_ids = [sae_id.strip() for sae_id in slave_sae_id.split(',') if sae_id.strip()]
+                    if not sae_ids:
+                        console.print("[red]✗[/red] At least one slave SAE ID is required")
+                        continue
+                    
+                    # Use first SAE ID for API call, rest as additional_slave_SAE_IDs
+                    primary_slave_id = sae_ids[0]
+                    additional_slave_ids = sae_ids[1:] if len(sae_ids) > 1 else None
+                    
+                    console.print(f"[blue]Primary slave SAE ID: {primary_slave_id}[/blue]")
+                    if additional_slave_ids:
+                        console.print(f"[blue]Additional slave SAE IDs: {', '.join(additional_slave_ids)}[/blue]")
+                    
                     from src.services.key_service import key_service
-                    response = key_service.request_keys_from_kme(KeyType.ENCRYPTION, 256, 1, slave_sae_id=slave_sae_id)
+                    response = key_service.request_keys_from_kme(
+                        KeyType.ENCRYPTION, 
+                        key_size, 
+                        quantity, 
+                        slave_sae_id=primary_slave_id,
+                        additional_slave_sae_ids=additional_slave_ids
+                    )
                     console.print(f"\n[green]✓[/green] Successfully received and stored {len(response.keys)} keys")
                     
                     # Display key information

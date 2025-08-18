@@ -41,7 +41,7 @@ class KeyManagementService:
             self.logger.warning(f"Could not load existing keys: {e}")
             self.keys = {}
     
-    def request_keys_from_kme(self, key_type: KeyType, key_size: int, quantity: int = 1, slave_sae_id: str = None, master_sae_id: str = None) -> KeyResponse:
+    def request_keys_from_kme(self, key_type: KeyType, key_size: int, quantity: int = 1, slave_sae_id: str = None, master_sae_id: str = None, additional_slave_sae_ids: List[str] = None) -> KeyResponse:
         """
         Request keys from KME server.
         
@@ -51,6 +51,7 @@ class KeyManagementService:
             quantity: Number of keys to request
             slave_sae_id: Slave SAE ID for encryption keys
             master_sae_id: Master SAE ID for decryption keys
+            additional_slave_sae_ids: Additional slave SAE IDs for key sharing (ETSI multicast)
             
         Returns:
             KeyResponse: Response containing requested keys
@@ -63,7 +64,7 @@ class KeyManagementService:
             if key_type == KeyType.ENCRYPTION:
                 if not slave_sae_id:
                     slave_sae_id = "SLAVE_001"  # Default fallback
-                response = kme_client.request_encryption_keys_for_slave(slave_sae_id, key_size, quantity)
+                response = kme_client.request_encryption_keys_for_slave(slave_sae_id, key_size, quantity, additional_slave_sae_ids)
             else:
                 if not master_sae_id:
                     master_sae_id = "MASTER_001"  # Default fallback
