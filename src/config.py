@@ -50,6 +50,14 @@ class SAEConfig(BaseSettings):
     master_slave_port: int = Field(default=8080, description="Master/Slave communication port")
     notification_timeout: int = Field(default=10, description="Notification timeout in seconds")
     
+    # Synchronization Settings
+    udp_port: int = Field(default=5000, description="UDP port for synchronization messages")
+    sync_timeout: int = Field(default=30, description="Timeout for synchronization operations (seconds)")
+    rotation_advance_time: int = Field(default=300, description="Advance time for key rotation (seconds)")
+    device_persona: str = Field(default="default", description="Device persona to use")
+    max_message_size: int = Field(default=8192, description="Maximum UDP message size")
+    signature_algorithm: str = Field(default="RSA-SHA256", description="Signature algorithm to use")
+    
     class Config:
         env_file = ".env"
         env_prefix = "SAE_"

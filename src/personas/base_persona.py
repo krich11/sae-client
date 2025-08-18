@@ -1,0 +1,289 @@
+"""
+Base Persona Interface.
+Defines the interface for device-specific key rotation implementations.
+"""
+
+import logging
+from abc import ABC, abstractmethod
+from typing import Optional, Dict, Any
+from datetime import datetime
+from pathlib import Path
+
+
+class BasePersona(ABC):
+    """Base class for device persona implementations."""
+    
+    def __init__(self, config: Dict[str, Any]):
+        """
+        Initialize persona with configuration.
+        
+        Args:
+            config: Device-specific configuration dictionary
+        """
+        self.config = config
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.device_status = "unknown"
+        self._validate_config()
+    
+    @abstractmethod
+    def _validate_config(self):
+        """Validate persona-specific configuration."""
+        pass
+    
+    @abstractmethod
+    def pre_configure_key(self, key_id: str, key_material: str) -> bool:
+        """
+        Pre-configure a key in the device.
+        
+        Args:
+            key_id: Unique identifier for the key
+            key_material: Base64-encoded key material
+            
+        Returns:
+            bool: True if key was successfully pre-configured
+        """
+        pass
+    
+    @abstractmethod
+    def rotate_key(self, key_id: str, rotation_timestamp: int) -> bool:
+        """
+        Rotate to the specified key at the given timestamp.
+        
+        Args:
+            key_id: Unique identifier for the key to rotate to
+            rotation_timestamp: Unix timestamp when rotation should occur
+            
+        Returns:
+            bool: True if key rotation was successful
+        """
+        pass
+    
+    @abstractmethod
+    def cleanup_old_keys(self) -> bool:
+        """
+        Clean up old/expired keys from the device.
+        
+        Returns:
+            bool: True if cleanup was successful
+        """
+        pass
+    
+    @abstractmethod
+    def get_device_status(self) -> Dict[str, Any]:
+        """
+        Get current device status.
+        
+        Returns:
+            Dict containing device status information
+        """
+        pass
+    
+    def get_persona_info(self) -> Dict[str, Any]:
+        """
+        Get persona information.
+        
+        Returns:
+            Dict containing persona information
+        """
+        return {
+            "name": self.__class__.__name__,
+            "version": getattr(self, 'version', '1.0.0'),
+            "description": getattr(self, 'description', 'Base persona implementation'),
+            "device_status": self.device_status,
+            "config": self.config
+        }
+    
+    def test_connection(self) -> bool:
+        """
+        Test connection to the device.
+        
+        Returns:
+            bool: True if connection is successful
+        """
+        try:
+            status = self.get_device_status()
+            return status.get('connected', False)
+        except Exception as e:
+            self.logger.error(f"Connection test failed: {e}")
+            return False
+    
+    def validate_key_material(self, key_material: str) -> bool:
+        """
+        Validate key material format.
+        
+        Args:
+            key_material: Base64-encoded key material
+            
+        Returns:
+            bool: True if key material is valid
+        """
+        try:
+            import base64
+            # Try to decode the key material
+            decoded = base64.b64decode(key_material)
+            # Check if it's a reasonable size (8-64 bytes)
+            if len(decoded) < 8 or len(decoded) > 64:
+                self.logger.warning(f"Key material size {len(decoded)} bytes is outside expected range")
+                return False
+            return True
+        except Exception as e:
+            self.logger.error(f"Key material validation failed: {e}")
+            return False
+    
+    def log_operation(self, operation: str, key_id: str, status: str, details: Optional[str] = None):
+        """
+        Log a persona operation.
+        
+        Args:
+            operation: Operation name (e.g., 'pre_configure', 'rotate', 'cleanup')
+            key_id: Key ID involved in the operation
+            status: Operation status ('success', 'failed', 'pending')
+            details: Additional details about the operation
+        """
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "operation": operation,
+            "key_id": key_id,
+            "status": status,
+            "persona": self.__class__.__name__
+        }
+        
+        if details:
+            log_entry["details"] = details
+        
+        if status == "success":
+            self.logger.info(f"Operation {operation} for key {key_id} completed successfully")
+        elif status == "failed":
+            self.logger.error(f"Operation {operation} for key {key_id} failed: {details}")
+        else:
+            self.logger.info(f"Operation {operation} for key {key_id}: {status}")
+        
+        # Store operation log if configured
+        if hasattr(self, 'operation_log') and self.operation_log:
+            self.operation_log.append(log_entry)
+
+
+class PersonaManager:
+    """Manages persona plugin loading and instantiation."""
+    
+    def __init__(self):
+        """Initialize persona manager."""
+        self.logger = logging.getLogger(__name__)
+        self.personas: Dict[str, BasePersona] = {}
+        self.persona_configs: Dict[str, Dict[str, Any]] = {}
+        self._load_persona_configs()
+    
+    def _load_persona_configs(self):
+        """Load persona configurations from config files."""
+        try:
+            config_dir = Path("personas/config")
+            if config_dir.exists():
+                for config_file in config_dir.glob("*.json"):
+                    persona_name = config_file.stem
+                    try:
+                        import json
+                        with open(config_file, 'r') as f:
+                            config = json.load(f)
+                        self.persona_configs[persona_name] = config
+                        self.logger.info(f"Loaded config for persona: {persona_name}")
+                    except Exception as e:
+                        self.logger.error(f"Failed to load config for persona {persona_name}: {e}")
+            else:
+                self.logger.info("No persona config directory found, using defaults")
+        except Exception as e:
+            self.logger.error(f"Error loading persona configs: {e}")
+    
+    def load_persona(self, persona_name: str) -> Optional[BasePersona]:
+        """
+        Load a persona plugin.
+        
+        Args:
+            persona_name: Name of the persona to load
+            
+        Returns:
+            BasePersona: Loaded persona instance, or None if loading failed
+        """
+        try:
+            # Check if persona is already loaded
+            if persona_name in self.personas:
+                return self.personas[persona_name]
+            
+            # Get persona configuration
+            config = self.persona_configs.get(persona_name, {})
+            
+            # Import persona module
+            module_name = f"src.personas.{persona_name}_persona"
+            try:
+                module = __import__(module_name, fromlist=[f"{persona_name.title()}Persona"])
+                persona_class = getattr(module, f"{persona_name.title()}Persona")
+                
+                # Create persona instance
+                persona = persona_class(config)
+                self.personas[persona_name] = persona
+                
+                self.logger.info(f"Successfully loaded persona: {persona_name}")
+                return persona
+                
+            except ImportError:
+                self.logger.warning(f"Persona module not found: {module_name}")
+                return None
+            except AttributeError:
+                self.logger.warning(f"Persona class not found in module: {module_name}")
+                return None
+            except Exception as e:
+                self.logger.error(f"Failed to instantiate persona {persona_name}: {e}")
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Error loading persona {persona_name}: {e}")
+            return None
+    
+    def get_persona(self, persona_name: str) -> Optional[BasePersona]:
+        """
+        Get a persona instance.
+        
+        Args:
+            persona_name: Name of the persona
+            
+        Returns:
+            BasePersona: Persona instance, or None if not found
+        """
+        return self.personas.get(persona_name)
+    
+    def list_personas(self) -> Dict[str, Dict[str, Any]]:
+        """
+        List all loaded personas.
+        
+        Returns:
+            Dict containing information about loaded personas
+        """
+        persona_info = {}
+        for name, persona in self.personas.items():
+            persona_info[name] = persona.get_persona_info()
+        return persona_info
+    
+    def unload_persona(self, persona_name: str) -> bool:
+        """
+        Unload a persona plugin.
+        
+        Args:
+            persona_name: Name of the persona to unload
+            
+        Returns:
+            bool: True if persona was unloaded successfully
+        """
+        try:
+            if persona_name in self.personas:
+                del self.personas[persona_name]
+                self.logger.info(f"Unloaded persona: {persona_name}")
+                return True
+            else:
+                self.logger.warning(f"Persona not found: {persona_name}")
+                return False
+        except Exception as e:
+            self.logger.error(f"Error unloading persona {persona_name}: {e}")
+            return False
+
+
+# Global persona manager instance
+persona_manager = PersonaManager()

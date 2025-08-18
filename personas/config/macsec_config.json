@@ -1,0 +1,16 @@
+{
+  "interface": "eth0",
+  "key_algorithm": "aes-gcm-256",
+  "pre_config_time": 60,
+  "cleanup_delay": 30,
+  "connectivity_test_interval": 300,
+  "max_keys": 10,
+  "key_lifetime": 86400,
+  "rotation_advance_time": 300,
+  "encryption_enabled": true,
+  "integrity_enabled": true,
+  "replay_protection": true,
+  "debug_mode": false,
+  "log_operations": true,
+  "operation_log_file": "./logs/macsec_operations.log"
+}

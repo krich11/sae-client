@@ -184,8 +184,8 @@ def print_keys(keys, title="Available Keys"):
                     "",  # Empty for source column
                     "",  # Empty for allowed SAE column
                     ""   # Empty for created column
-                )
-        
+        )
+    
         console.print(table)
         
         # Debug mode: Print full key details separately to ensure no truncation
@@ -1431,6 +1431,196 @@ def test_all_routes():
             console.print(f"[red]✗[/red] Test failed: {e}")
     
     console.print("\n[bold green]All route tests completed![/bold green]")
+
+
+@cli.command()
+@click.option('--slave-id', required=True, help='Slave SAE ID to notify')
+@click.option('--key-ids', required=True, help='Comma-separated list of key IDs to notify about')
+@click.option('--slave-host', required=True, help='Slave SAE host/IP address')
+@click.option('--slave-port', default=5000, help='Slave SAE UDP port (default: 5000)')
+@click.option('--rotation-delay', default=300, help='Rotation delay in seconds (default: 300)')
+def notify_slave_sync(slave_id, key_ids, slave_host, slave_port, rotation_delay):
+    """Notify a slave SAE of available keys for synchronized rotation."""
+    try:
+        from src.services.udp_service import udp_service
+        from src.utils.message_signer import message_signer
+        import time
+        
+        # Parse key IDs
+        key_id_list = [kid.strip() for kid in key_ids.split(',') if kid.strip()]
+        if not key_id_list:
+            console.print("[red]✗[/red] At least one key ID is required")
+            return
+        
+        # Calculate rotation timestamp
+        rotation_timestamp = int(time.time()) + rotation_delay
+        
+        # Create key notification message
+        signed_message = message_signer.create_key_notification(
+            key_ids=key_id_list,
+            rotation_timestamp=rotation_timestamp,
+            master_sae_id=config.sae_id,
+            slave_sae_id=slave_id
+        )
+        
+        # Send message
+        success = udp_service.send_message(signed_message, slave_host, slave_port)
+        
+        if success:
+            console.print(f"[green]✓[/green] Successfully notified slave {slave_id}")
+            console.print(f"[green]✓[/green] Key IDs: {', '.join(key_id_list)}")
+            console.print(f"[green]✓[/green] Rotation timestamp: {rotation_timestamp}")
+            console.print(f"[green]✓[/green] Rotation time: {time.ctime(rotation_timestamp)}")
+        else:
+            console.print(f"[red]✗[/red] Failed to notify slave {slave_id}")
+            
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error notifying slave: {e}")
+
+
+@cli.command()
+@click.option('--port', default=5000, help='UDP port to listen on (default: 5000)')
+def start_sync_listener(port):
+    """Start UDP listener for synchronization messages."""
+    try:
+        from src.services.udp_service import udp_service
+        
+        console.print(f"[blue]Starting UDP listener on port {port}...[/blue]")
+        
+        success = udp_service.start_listener(port)
+        
+        if success:
+            console.print(f"[green]✓[/green] UDP listener started on port {port}")
+            console.print("[yellow]Press Ctrl+C to stop the listener[/yellow]")
+            
+            try:
+                # Keep the listener running
+                while udp_service.is_running:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Stopping UDP listener...[/yellow]")
+                udp_service.stop_listener()
+                console.print("[green]✓[/green] UDP listener stopped")
+        else:
+            console.print(f"[red]✗[/red] Failed to start UDP listener on port {port}")
+            
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error starting listener: {e}")
+
+
+@cli.command()
+def sync_status():
+    """Show synchronization status and sessions."""
+    try:
+        from src.services.udp_service import udp_service
+        from rich.table import Table
+        
+        sessions = udp_service.get_sessions()
+        
+        if not sessions:
+            console.print("[yellow]No active synchronization sessions[/yellow]")
+            return
+        
+        # Create sessions table
+        table = Table(title="Synchronization Sessions")
+        table.add_column("Session ID", style="cyan")
+        table.add_column("Master SAE", style="green")
+        table.add_column("Slave SAE", style="blue")
+        table.add_column("State", style="yellow")
+        table.add_column("Key Count", style="magenta")
+        table.add_column("Rotation Time", style="white")
+        table.add_column("Updated", style="dim")
+        
+        for session_id, session in sessions.items():
+            rotation_time = time.ctime(session.rotation_timestamp) if session.rotation_timestamp else "N/A"
+            updated_time = session.updated_at.strftime("%H:%M:%S")
+            
+            table.add_row(
+                session_id[:8] + "...",
+                session.master_sae_id,
+                session.slave_sae_id,
+                session.state.value,
+                str(len(session.key_ids)),
+                rotation_time,
+                updated_time
+            )
+        
+        console.print(table)
+        
+        # Show listener status
+        listener_status = "Running" if udp_service.is_running else "Stopped"
+        console.print(f"\n[blue]UDP Listener Status:[/blue] {listener_status}")
+        
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error getting sync status: {e}")
+
+
+@cli.command()
+def list_personas():
+    """List available device personas."""
+    try:
+        from src.personas.base_persona import persona_manager
+        
+        personas = persona_manager.list_personas()
+        
+        if not personas:
+            console.print("[yellow]No personas loaded[/yellow]")
+            return
+        
+        from rich.table import Table
+        table = Table(title="Available Device Personas")
+        table.add_column("Name", style="cyan")
+        table.add_column("Version", style="green")
+        table.add_column("Description", style="blue")
+        table.add_column("Status", style="yellow")
+        
+        for name, info in personas.items():
+            table.add_row(
+                name,
+                info.get('version', 'N/A'),
+                info.get('description', 'N/A'),
+                info.get('device_status', 'unknown')
+            )
+        
+        console.print(table)
+        
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error listing personas: {e}")
+
+
+@cli.command()
+@click.option('--persona', required=True, help='Persona name to test')
+def test_persona(persona):
+    """Test a device persona."""
+    try:
+        from src.personas.base_persona import persona_manager
+        
+        # Load persona
+        persona_instance = persona_manager.load_persona(persona)
+        
+        if not persona_instance:
+            console.print(f"[red]✗[/red] Failed to load persona: {persona}")
+            return
+        
+        console.print(f"[blue]Testing persona: {persona}[/blue]")
+        
+        # Test connection
+        connection_ok = persona_instance.test_connection()
+        console.print(f"[{'green' if connection_ok else 'red'}]✓[/{'green' if connection_ok else 'red'}] Connection: {'OK' if connection_ok else 'FAILED'}")
+        
+        # Get device status
+        status = persona_instance.get_device_status()
+        console.print(f"[blue]Device Status:[/blue] {status}")
+        
+        # Test key validation
+        test_key = "dGVzdC1rZXktbWF0ZXJpYWw="  # "test-key-material" in base64
+        key_valid = persona_instance.validate_key_material(test_key)
+        console.print(f"[{'green' if key_valid else 'red'}]✓[/{'green' if key_valid else 'red'}] Key Validation: {'OK' if key_valid else 'FAILED'}")
+        
+        console.print(f"[green]✓[/green] Persona test completed")
+        
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error testing persona: {e}")
 
 
 if __name__ == '__main__':
