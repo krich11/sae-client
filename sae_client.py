@@ -118,6 +118,20 @@ def print_keys(keys, title="Available Keys"):
                 key_id_ext,
                 key_ext
             )
+            
+            # Add debug row with full key material if debug mode is enabled
+            if config_manager.config.debug_mode:
+                import hashlib
+                key_id_and_material = f"{key.key_ID}{key.key}"
+                md5_hash = hashlib.md5(key_id_and_material.encode()).hexdigest()
+                
+                # Add a row with full key material and MD5 hash
+                table.add_row(
+                    f"[dim]Full Key Material:[/dim]",
+                    f"[dim]{key.key}[/dim]",
+                    f"[dim]MD5: {md5_hash}[/dim]",
+                    ""  # Empty for key extension column
+                )
     else:
         # Local key format
         table = Table(title=title)
@@ -145,6 +159,23 @@ def print_keys(keys, title="Available Keys"):
                 allowed_sae,
                 key.creation_time.strftime("%Y-%m-%d %H:%M:%S")
             )
+            
+            # Add debug row with full key material if debug mode is enabled
+            if config_manager.config.debug_mode:
+                import hashlib
+                key_id_and_material = f"{key.key_id}{key.key_material}"
+                md5_hash = hashlib.md5(key_id_and_material.encode()).hexdigest()
+                
+                # Add a row with full key material and MD5 hash
+                table.add_row(
+                    f"[dim]Full Key Material:[/dim]",
+                    f"[dim]{key.key_material}[/dim]",
+                    f"[dim]MD5: {md5_hash}[/dim]",
+                    "",  # Empty for status column
+                    "",  # Empty for source column
+                    "",  # Empty for allowed SAE column
+                    ""   # Empty for created column
+                )
     
     console.print(table)
 
