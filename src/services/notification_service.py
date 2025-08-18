@@ -291,28 +291,94 @@ class SlaveNotificationService(NotificationService):
         
         return True
     
-    def request_key_from_master(self, master_id: str, key_type: KeyType, key_size: int, quantity: int = 1) -> bool:
-        """Request keys from a master SAE."""
-        self.logger.info(f"Requesting {quantity} {key_type} keys from master {master_id}")
+    def request_key_from_master(self, master_id: str, key_ids: List[str] = None, key_type: KeyType = None, key_size: int = None, quantity: int = 1) -> bool:
+        """
+        Request keys from a master SAE using ETSI "Get key with key IDs" method.
         
-        notification = KeyRequestNotification(
-            slave_id=self.config.sae_id,
-            master_id=master_id,
-            key_type=key_type,
-            key_size=key_size,
-            quantity=quantity
-        )
+        Args:
+            master_id: ID of the master SAE
+            key_ids: List of key IDs to request (required for ETSI compliance)
+            key_type: Key type (legacy parameter, not used in ETSI)
+            key_size: Key size (legacy parameter, not used in ETSI)
+            quantity: Number of keys (legacy parameter, not used in ETSI)
+            
+        Returns:
+            bool: True if keys were successfully requested
+        """
+        self.logger.info(f"Requesting keys from master {master_id} using ETSI 'Get key with key IDs' method")
         
-        # For now, just log the request
-        self.logger.info(f"Would send key request: {notification.dict()}")
+        if not key_ids:
+            self.logger.error("Key IDs are required for ETSI 'Get key with key IDs' method")
+            return False
         
-        # TODO: Implement actual request sending
-        # This would involve:
-        # - Looking up master connection details
-        # - Sending the request via network
-        # - Handling response and timeouts
-        
-        return True
+        try:
+            from ..api.client import kme_client
+            from ..services.key_service import key_service
+            
+            # ETSI "Get key with key IDs" request format
+            request_data = {
+                "key_IDs": [{"key_ID": key_id} for key_id in key_ids]
+            }
+            
+            # Make the ETSI-compliant API call
+            # URL: https://{KME_hostname}/api/v1/keys/{master_SAE_ID}/dec_keys
+            response = kme_client.session.post(
+                f"{self.config.kme_base_url}/api/v1/keys/{master_id}/dec_keys",
+                json=request_data,
+                timeout=self.config.timeout
+            )
+            
+            if response.status_code == 200:
+                # Parse the ETSI Key container response
+                key_container = response.json()
+                keys = key_container.get('keys', [])
+                
+                self.logger.info(f"Successfully received {len(keys)} keys from master {master_id}")
+                
+                # Store the received keys locally
+                for key_data in keys:
+                    key_id = key_data.get('key_ID')
+                    key_material = key_data.get('key')
+                    
+                    if key_id and key_material:
+                        # Create local key record
+                        local_key = LocalKey(
+                            key_id=key_id,
+                            key_type=KeyType.DECRYPTION,  # Keys from master are for decryption
+                            key_material=key_material,
+                            key_size=len(key_material) * 6 // 8,  # Base64 to bits approximation
+                            source=f"master:{master_id}",
+                            creation_time=datetime.now(),
+                            status=KeyStatus.AVAILABLE,
+                            metadata={
+                                'master_id': master_id,
+                                'etsi_response': key_data
+                            }
+                        )
+                        
+                        # Store the key
+                        key_service.store_key(local_key)
+                        self.logger.info(f"Stored key {key_id} from master {master_id}")
+                
+                return True
+                
+            elif response.status_code == 401:
+                self.logger.error(f"Unauthorized: SAE {self.config.sae_id} was not authorized to request these keys")
+                return False
+                
+            elif response.status_code == 400:
+                error_data = response.json()
+                error_msg = error_data.get('message', 'Unknown error')
+                self.logger.error(f"Bad request: {error_msg}")
+                return False
+                
+            else:
+                self.logger.error(f"KME request failed with status {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error requesting keys from master {master_id}: {e}")
+            return False
 
 
 # Global notification service instances

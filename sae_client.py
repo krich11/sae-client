@@ -464,13 +464,26 @@ def notify_slave(slave_id, key_id):
 
 @cli.command()
 @click.option('--master-id', required=True, help='Master SAE ID to request from')
-@click.option('--key-type', type=click.Choice(['encryption', 'decryption']), default='encryption')
-@click.option('--key-size', default=256, help='Key size in bits')
-@click.option('--quantity', default=1, help='Number of keys to request')
-def request_from_master(master_id, key_type, key_size, quantity):
-    """Request keys from a master SAE (Slave mode only)."""
-    if not config_manager.is_slave_mode():
-        console.print("[red]Error: This command is only available in slave mode[/red]")
+@click.option('--key-ids', help='Comma-separated list of key IDs to request')
+def request_from_master(master_id, key_ids):
+    """Request keys from a master SAE using ETSI 'Get key with key IDs' method (Slave role only)."""
+    if not config_manager.is_slave():
+        console.print("[red]Error: This command is only available for SAEs with slave role[/red]")
+        return
+    
+    # Parse key IDs
+    if key_ids:
+        key_id_list = [kid.strip() for kid in key_ids.split(',') if kid.strip()]
+    else:
+        # Prompt for key IDs if not provided
+        key_ids_input = input("Enter key IDs to request (comma-separated): ").strip()
+        if not key_ids_input:
+            console.print("[red]✗[/red] Key IDs are required for ETSI 'Get key with key IDs' method")
+            return
+        key_id_list = [kid.strip() for kid in key_ids_input.split(',') if kid.strip()]
+    
+    if not key_id_list:
+        console.print("[red]✗[/red] At least one key ID is required")
         return
     
     with Progress(
@@ -478,17 +491,18 @@ def request_from_master(master_id, key_type, key_size, quantity):
         TextColumn("[progress.description]{task.description}"),
         console=console
     ) as progress:
-        task = progress.add_task(f"Requesting keys from master {master_id}...", total=None)
+        task = progress.add_task(f"Requesting {len(key_id_list)} keys from master {master_id}...", total=None)
         
         try:
             success = slave_notification_service.request_key_from_master(
-                master_id, KeyType(key_type), key_size, quantity
+                master_id, key_ids=key_id_list
             )
             
             progress.update(task, completed=True)
             
             if success:
-                console.print(f"[green]✓[/green] Successfully requested keys from master {master_id}")
+                console.print(f"[green]✓[/green] Successfully requested {len(key_id_list)} keys from master {master_id}")
+                console.print(f"[green]✓[/green] Keys requested: {', '.join(key_id_list)}")
             else:
                 console.print(f"[red]✗[/red] Failed to request keys from master {master_id}")
                 
@@ -799,6 +813,44 @@ Available commands:
                         
                 except Exception as e:
                     console.print(f"[red]✗[/red] Connection test error: {e}")
+                    
+            elif command.lower() == 'request-from-master':
+                # Call request-from-master function directly with ETSI compliance
+                try:
+                    if not config_manager.is_slave():
+                        console.print("[red]✗[/red] This command is only available for SAEs with slave role")
+                        continue
+                    
+                    # Prompt for master SAE ID
+                    master_sae_id = input("Enter master SAE ID: ").strip()
+                    if not master_sae_id:
+                        console.print("[red]✗[/red] Master SAE ID is required")
+                        continue
+                    
+                    # Prompt for key IDs
+                    key_ids_input = input("Enter key IDs to request (comma-separated): ").strip()
+                    if not key_ids_input:
+                        console.print("[red]✗[/red] Key IDs are required for ETSI 'Get key with key IDs' method")
+                        continue
+                    
+                    key_id_list = [kid.strip() for kid in key_ids_input.split(',') if kid.strip()]
+                    if not key_id_list:
+                        console.print("[red]✗[/red] At least one key ID is required")
+                        continue
+                    
+                    # Make the request
+                    success = slave_notification_service.request_key_from_master(
+                        master_sae_id, key_ids=key_id_list
+                    )
+                    
+                    if success:
+                        console.print(f"[green]✓[/green] Successfully requested {len(key_id_list)} keys from master {master_sae_id}")
+                        console.print(f"[green]✓[/green] Keys requested: {', '.join(key_id_list)}")
+                    else:
+                        console.print(f"[red]✗[/red] Failed to request keys from master {master_sae_id}")
+                        
+                except Exception as e:
+                    console.print(f"[red]✗[/red] Error requesting from master: {e}")
             elif command.lower() == 'test-menu':
                 test_menu()
             else:

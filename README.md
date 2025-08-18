@@ -130,8 +130,11 @@ python sae_client.py request-keys --key-type encryption --quantity 10
 When configured as a slave SAE:
 
 ```bash
-# Request keys from a master
-python sae_client.py request-from-master --master-id MASTER_001 --key-type encryption
+# Request specific keys using ETSI "Get key with key IDs" method
+python sae_client.py request-from-master --master-id MASTER_001 --key-ids "key1,key2,key3"
+
+# Interactive mode will prompt for key IDs
+python sae_client.py request-from-master --master-id MASTER_001
 
 # Check for available keys
 python sae_client.py list-keys
