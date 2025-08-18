@@ -425,10 +425,7 @@ def reset_keys(confirm):
 @click.option('--slave-id', required=True, help='Slave SAE ID to notify')
 @click.option('--key-id', required=True, help='Key ID to notify about')
 def notify_slave(slave_id, key_id):
-    """Notify a slave SAE of available key (Master mode only)."""
-    if not config_manager.is_master_mode():
-        console.print("[red]Error: This command is only available in master mode[/red]")
-        return
+    """Notify a slave SAE of available key."""
     
     with Progress(
         SpinnerColumn(),
@@ -466,10 +463,7 @@ def notify_slave(slave_id, key_id):
 @click.option('--master-id', required=True, help='Master SAE ID to request from')
 @click.option('--key-ids', help='Comma-separated list of key IDs to request')
 def request_from_master(master_id, key_ids):
-    """Request keys from a master SAE using ETSI 'Get key with key IDs' method (Slave role only)."""
-    if not config_manager.is_slave():
-        console.print("[red]Error: This command is only available for SAEs with slave role[/red]")
-        return
+    """Request keys from a master SAE using ETSI 'Get key with key IDs' method."""
     
     # Parse key IDs
     if key_ids:
@@ -608,8 +602,8 @@ Available commands:
   health              - Show SAE health and configuration
   request-keys        - Request keys from KME
   list-keys           - List local keys
-  notify-slave        - Notify slave of available key (Master role)
-  request-from-master - Request keys from master (Slave role)
+  notify-slave        - Notify slave of available key
+  request-from-master - Request keys from master
   test-connection     - Test KME connection
   test-menu           - Test Easy-KME server routes
   help, ?             - Show this help
@@ -817,9 +811,6 @@ Available commands:
             elif command.lower() == 'request-from-master':
                 # Call request-from-master function directly with ETSI compliance
                 try:
-                    if not config_manager.is_slave():
-                        console.print("[red]✗[/red] This command is only available for SAEs with slave role")
-                        continue
                     
                     # Prompt for master SAE ID
                     master_sae_id = input("Enter master SAE ID: ").strip()
@@ -851,6 +842,60 @@ Available commands:
                         
                 except Exception as e:
                     console.print(f"[red]✗[/red] Error requesting from master: {e}")
+                    
+            elif command.lower() == 'notify-slave':
+                # Call notify-slave function directly
+                try:
+                    # Prompt for slave SAE ID
+                    slave_sae_id = input("Enter slave SAE ID: ").strip()
+                    if not slave_sae_id:
+                        console.print("[red]✗[/red] Slave SAE ID is required")
+                        continue
+                    
+                    # Prompt for key ID
+                    key_id = input("Enter key ID to notify about: ").strip()
+                    if not key_id:
+                        console.print("[red]✗[/red] Key ID is required")
+                        continue
+                    
+                    # Get actual key data from local storage
+                    from src.services.key_service import key_service
+                    available_keys = key_service.get_available_keys()
+                    
+                    # Find the key in local storage
+                    key_data = None
+                    for key in available_keys:
+                        if key.key_id == key_id:
+                            key_data = {
+                                'key_type': key.key_type,
+                                'key_size': key.key_size,
+                                'key_material': key.key_material,
+                                'expiry_time': key.expiry_time.isoformat() if key.expiry_time else None
+                            }
+                            break
+                    
+                    if not key_data:
+                        console.print(f"[yellow]⚠[/yellow] Key {key_id} not found in local storage, using dummy data")
+                        key_data = {
+                            'key_type': KeyType.ENCRYPTION,
+                            'key_size': 256,
+                            'key_material': 'dummy_key_material',
+                            'expiry_time': None
+                        }
+                    
+                    # Make the notification
+                    success = master_notification_service.notify_slave_available_key(
+                        slave_sae_id, key_id, key_data
+                    )
+                    
+                    if success:
+                        console.print(f"[green]✓[/green] Successfully notified slave {slave_sae_id} about key {key_id}")
+                    else:
+                        console.print(f"[red]✗[/red] Failed to notify slave {slave_sae_id}")
+                        
+                except Exception as e:
+                    console.print(f"[red]✗[/red] Error notifying slave: {e}")
+                    
             elif command.lower() == 'test-menu':
                 test_menu()
             else:
