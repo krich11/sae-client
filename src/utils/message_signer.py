@@ -96,6 +96,12 @@ class MessageSigner:
                 hashes.SHA256()
             )
             
+            # Export public key to PEM format
+            public_key_pem = self._public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            ).decode('utf-8')
+            
             # Encode payload and signature
             payload_b64 = base64.b64encode(message_json.encode('utf-8')).decode('utf-8')
             signature_b64 = base64.b64encode(signature).decode('utf-8')
@@ -103,7 +109,8 @@ class MessageSigner:
             signed_message = SignedMessage(
                 payload=payload_b64,
                 signature=signature_b64,
-                sender_sae_id=sae_id
+                sender_sae_id=sae_id,
+                public_key=public_key_pem
             )
             
             # Debug logging for message signing
@@ -144,6 +151,7 @@ class MessageSigner:
                 self.logger.info(f"  Actual Sender: {signed_message.sender_sae_id}")
                 self.logger.info(f"  Payload Size: {len(signed_message.payload)} bytes")
                 self.logger.info(f"  Signature Size: {len(signed_message.signature)} bytes")
+                self.logger.info(f"  Public Key Size: {len(signed_message.public_key)} bytes")
             
             # Verify sender SAE ID
             if signed_message.sender_sae_id != expected_sender:
@@ -160,8 +168,8 @@ class MessageSigner:
                 self.logger.info(f"  Payload Bytes: {len(payload_bytes)} bytes")
                 self.logger.info(f"  Signature Bytes: {len(signature_bytes)} bytes")
             
-            # Verify signature
-            if not self._verify_signature(payload_bytes, signature_bytes, signed_message.sender_sae_id):
+            # Verify signature using public key from message
+            if not self._verify_signature_with_key(payload_bytes, signature_bytes, signed_message.public_key, signed_message.sender_sae_id):
                 self.logger.warning(f"Signature verification failed for message from {signed_message.sender_sae_id}")
                 return None
             
@@ -208,9 +216,60 @@ class MessageSigner:
             self.logger.error(f"Failed to verify message: {e}")
             return None
     
+    def _verify_signature_with_key(self, payload: bytes, signature: bytes, public_key_pem: str, sender_sae_id: str) -> bool:
+        """
+        Verify signature using the public key provided in the message.
+        
+        Args:
+            payload: The message payload
+            signature: The signature to verify
+            public_key_pem: PEM-encoded public key from the message
+            sender_sae_id: SAE ID of the sender (for logging)
+            
+        Returns:
+            bool: True if signature is valid
+        """
+        try:
+            # Load public key from PEM string
+            public_key = serialization.load_pem_public_key(
+                public_key_pem.encode('utf-8'),
+                backend=default_backend()
+            )
+            
+            # Create hash of the payload
+            payload_hash = hashlib.sha256(payload).digest()
+            
+            # Debug logging for signature verification
+            if self.config.debug_mode:
+                self.logger.info(f"SIGNATURE VERIFICATION DETAILS:")
+                self.logger.info(f"  Sender SAE ID: {sender_sae_id}")
+                self.logger.info(f"  Payload hash: {payload_hash.hex()}")
+                self.logger.info(f"  Signature: {signature.hex()}")
+                self.logger.info(f"  Public key loaded from message")
+            
+            # Verify signature
+            public_key.verify(
+                signature,
+                payload_hash,
+                padding.PSS(
+                    mgf=padding.MGF1(hashes.SHA256()),
+                    salt_length=padding.PSS.MAX_LENGTH
+                ),
+                hashes.SHA256()
+            )
+            
+            return True
+            
+        except InvalidSignature:
+            self.logger.warning(f"Invalid signature for message from {sender_sae_id}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Signature verification error: {e}")
+            return False
+    
     def _verify_signature(self, payload: bytes, signature: bytes, sender_sae_id: str) -> bool:
         """
-        Verify signature using sender's public key.
+        Verify signature using sender's public key (legacy method).
         
         Args:
             payload: The message payload

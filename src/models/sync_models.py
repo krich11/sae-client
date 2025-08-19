@@ -128,6 +128,7 @@ class SignedMessage(BaseModel):
     payload: str = Field(..., description="Base64-encoded JSON payload")
     signature: str = Field(..., description="Base64-encoded RSA-SHA256 signature")
     sender_sae_id: str = Field(..., description="SAE ID of the message sender")
+    public_key: str = Field(..., description="PEM-encoded public key of the sender")
     
     @validator('payload')
     def validate_payload(cls, v):
@@ -141,6 +142,15 @@ class SignedMessage(BaseModel):
         """Validate signature is not empty."""
         if not v.strip():
             raise ValueError('signature cannot be empty')
+        return v
+    
+    @validator('public_key')
+    def validate_public_key(cls, v):
+        """Validate public key is in PEM format."""
+        if not v.strip():
+            raise ValueError('public_key cannot be empty')
+        if not v.startswith('-----BEGIN PUBLIC KEY-----'):
+            raise ValueError('public_key must be in PEM format')
         return v
 
 
