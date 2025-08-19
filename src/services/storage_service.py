@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import shutil
-import sqlite3
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from pathlib import Path
@@ -65,20 +64,21 @@ class StorageService:
         # The actual initialization is now handled by the storage backend
         pass
     
-    @contextmanager
-    def _get_db_connection(self):
-        """Get database connection with proper error handling."""
-        conn = None
-        try:
-            conn = sqlite3.connect(str(self.db_file))
-            conn.row_factory = sqlite3.Row
-            yield conn
-        except Exception as e:
-            self.logger.error(f"Database connection error: {e}")
-            raise
-        finally:
-            if conn:
-                conn.close()
+    # Legacy database connection method - no longer used
+    # @contextmanager
+    # def _get_db_connection(self):
+    #     """Get database connection with proper error handling."""
+    #     conn = None
+    #     try:
+    #         conn = sqlite3.connect(str(self.db_file))
+    #         conn.row_factory = sqlite3.Row
+    #         yield conn
+    #     except Exception as e:
+    #         self.logger.error(f"Database connection error: {e}")
+    #         raise
+    #     finally:
+    #         if conn:
+    #                 conn.close()
     
     def save_key(self, key: LocalKey) -> bool:
         """
@@ -132,25 +132,26 @@ class StorageService:
             self.logger.error(f"Failed to load keys: {e}")
             return {}
     
-    def _row_to_key(self, row) -> Optional[LocalKey]:
-        """Convert database row to LocalKey object."""
-        try:
-            from ..models.api_models import KeyType, KeyStatus
-            
-            return LocalKey(
-                key_id=row['key_id'],
-                key_type=KeyType(row['key_type']),
-                key_material=row['key_material'],
-                key_size=row['key_size'],
-                source=row['source'],
-                creation_time=datetime.fromisoformat(row['creation_time']),
-                expiry_time=datetime.fromisoformat(row['expiry_time']) if row['expiry_time'] else None,
-                status=KeyStatus(row['status']),
-                metadata=json.loads(row['metadata']) if row['metadata'] else {}
-            )
-        except Exception as e:
-            self.logger.error(f"Failed to convert row to key: {e}")
-            return None
+    # Legacy database row conversion method - no longer used
+    # def _row_to_key(self, row) -> Optional[LocalKey]:
+    #     """Convert database row to LocalKey object."""
+    #     try:
+    #         from ..models.api_models import KeyType, KeyStatus
+    #         
+    #         return LocalKey(
+    #             key_id=row['key_id'],
+    #             key_type=KeyType(row['key_type']),
+    #             key_material=row['key_material'],
+    #             key_size=row['key_size'],
+    #             source=row['source'],
+    #             creation_time=datetime.fromisoformat(row['creation_time']),
+    #             expiry_time=datetime.fromisoformat(row['expiry_time']) if row['expiry_time'] else None,
+    #             status=KeyStatus(row['status']),
+    #             metadata=json.loads(row['metadata']) if row['metadata'] else {}
+    #         )
+    #     except Exception as e:
+    #         self.logger.error(f"Failed to convert row to key: {e}")
+    #         return None
     
     def delete_key(self, key_id: str) -> bool:
         """
@@ -263,22 +264,14 @@ class StorageService:
     def _log_audit(self, action: str, entity_type: str, entity_id: Optional[str], details: str):
         """Log audit entry."""
         try:
-            with self._get_db_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    INSERT INTO audit_log (timestamp, action, entity_type, entity_id, details, user_id)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (
-                    datetime.now().isoformat(),
-                    action,
-                    entity_type,
-                    entity_id,
-                    details,
-                    self.config.sae_id
-                ))
-                
-                conn.commit()
+            # For now, just log to the application logger
+            # TODO: Implement audit logging in storage backends
+            self.logger.info(f"AUDIT: {action} {entity_type} {entity_id} - {details}")
+            
+            # If using SQLite backend, we can add proper audit logging later
+            if self.config.storage_backend.lower() == 'sqlite':
+                # TODO: Add SQLite audit logging when needed
+                pass
                 
         except Exception as e:
             self.logger.error(f"Failed to log audit entry: {e}")
