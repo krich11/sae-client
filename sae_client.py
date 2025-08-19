@@ -775,6 +775,44 @@ def check_certificate_files():
     
     return len(missing_files) == 0
 
+
+def check_key_file():
+    """Check if the key file exists and throw an error if missing."""
+    from src.config import config_manager
+    
+    config = config_manager.config
+    key_file_path = Path(config.storage_path)
+    
+    if not key_file_path.exists():
+        console.print(f"[red]✗ ERROR: Key file not found![/red]")
+        console.print(f"[red]  Expected file: {key_file_path.absolute()}[/red]")
+        console.print(f"[red]  Storage backend: {config.storage_backend}[/red]")
+        
+        if config.storage_backend.lower() == "json":
+            console.print(f"[red]  Expected format: JSON file with 'keys' object[/red]")
+            console.print(f"[red]  Example format: {{\"keys\": {{}}}}[/red]")
+        elif config.storage_backend.lower() == "sqlite":
+            console.print(f"[red]  Expected format: SQLite database file[/red]")
+            console.print(f"[red]  Database will be created automatically if it doesn't exist[/red]")
+        
+        console.print(f"[red]  Configuration source: {config_manager.config_file}[/red]")
+        console.print(f"[red]  Storage path setting: SAE_STORAGE_PATH={config.storage_path}[/red]")
+        
+        raise FileNotFoundError(f"Key file not found: {key_file_path.absolute()}")
+    
+    # Check if file is readable
+    try:
+        if config.storage_backend.lower() == "json":
+            with open(key_file_path, 'r') as f:
+                json.load(f)  # Test if it's valid JSON
+        console.print(f"[green]✓[/green] Key file found and accessible: {key_file_path.absolute()}")
+    except (json.JSONDecodeError, PermissionError) as e:
+        console.print(f"[red]✗ ERROR: Key file is corrupted or not accessible![/red]")
+        console.print(f"[red]  File: {key_file_path.absolute()}[/red]")
+        console.print(f"[red]  Error: {e}[/red]")
+        raise
+
+
 @cli.command()
 def interactive():
     """Start interactive mode with hierarchical commands."""
@@ -795,6 +833,9 @@ def interactive():
     
     # Check certificate files and warn if missing
     check_certificate_files()
+    
+    # Check key file exists
+    check_key_file()
     
     # Start UDP listener in background for synchronization
     try:
@@ -1229,7 +1270,7 @@ def handle_show_env(args):
         table.add_column("Source", style="yellow", width=15)
         
         # Get all fields from the config
-        for field_name, field in config.__fields__.items():
+        for field_name, field in config.model_fields.items():
             value = getattr(config, field_name)
             
             # Format the value for display
@@ -1255,7 +1296,7 @@ def handle_show_env(args):
         
         # Show additional info
         console.print(f"\n[dim]Configuration loaded from: {config_manager.config_file}[/dim]")
-        console.print(f"[dim]Total configuration variables: {len(config.__fields__)}[/dim]")
+        console.print(f"[dim]Total configuration variables: {len(config.model_fields)}[/dim]")
         
     except Exception as e:
         console.print(f"[red]✗[/red] Error showing environment: {e}")
