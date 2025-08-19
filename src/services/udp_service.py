@@ -704,6 +704,21 @@ class UDPService:
                     self.logger.info(f"  To: {master_host}:{master_port}")
                     self.logger.info(f"  Message Type: NOTIFY-ACK")
                     self.logger.info(f"  Original Message: {message.message_id}")
+                
+                # Update slave's own state machine to ACKNOWLEDGED state
+                session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
+                sync_state_machine.update_session_state(
+                    session_id=session_id,
+                    new_state=SyncState.ACKNOWLEDGED,
+                    selected_key_id=message.key_ids[0] if message.key_ids else None
+                )
+                
+                # Debug logging for slave state update
+                if self.config.debug_mode:
+                    self.logger.info(f"SLAVE STATE MACHINE UPDATED:")
+                    self.logger.info(f"  Session ID: {session_id}")
+                    self.logger.info(f"  New State: ACKNOWLEDGED")
+                    self.logger.info(f"  Selected Key: {message.key_ids[0] if message.key_ids else 'None'}")
             else:
                 self.logger.error("Failed to send key acknowledgment")
                 
