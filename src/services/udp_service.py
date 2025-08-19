@@ -213,7 +213,28 @@ class UDPService:
                 self.logger.info(f"UDP MESSAGE TIMESTAMP: {message.timestamp}")
             
             # State machine validation
-            session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
+            # For acknowledgments, use the original_message_id to find the session
+            if message.message_type == MessageType.KEY_ACKNOWLEDGMENT:
+                from ..models.sync_models import KeyAcknowledgmentMessage
+                if isinstance(message, KeyAcknowledgmentMessage):
+                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
+                else:
+                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
+            else:
+                session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
+            
+            # Debug logging for session ID construction
+            if self.config.debug_mode:
+                self.logger.info(f"STATE MACHINE VALIDATION:")
+                self.logger.info(f"  Message Type: {message.message_type}")
+                self.logger.info(f"  Message ID: {message.message_id}")
+                if message.message_type == MessageType.KEY_ACKNOWLEDGMENT:
+                    from ..models.sync_models import KeyAcknowledgmentMessage
+                    if isinstance(message, KeyAcknowledgmentMessage):
+                        self.logger.info(f"  Original Message ID: {message.original_message_id}")
+                self.logger.info(f"  Session ID: {session_id}")
+                self.logger.info(f"  Master SAE: {message.master_sae_id}")
+                self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
             
             # Map message type to state machine type
             state_message_type = self._map_message_type(message.message_type)
