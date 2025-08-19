@@ -131,6 +131,10 @@ class MessageSigner:
             
             self.logger.debug(f"Signed message {message.message_id} for SAE {sae_id}")
             return signed_message
+            
+        except Exception as e:
+            self.logger.error(f"Failed to sign message: {e}")
+            raise
     
     def _get_message_type(self, message: BaseSyncMessage) -> str:
         """
