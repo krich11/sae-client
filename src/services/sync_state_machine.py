@@ -278,6 +278,15 @@ class SyncStateMachine:
         """
         return self.sessions.get(session_id)
     
+    def list_sessions(self) -> Dict[str, SessionInfo]:
+        """
+        Get all active sessions.
+        
+        Returns:
+            Dict[str, SessionInfo]: All active sessions
+        """
+        return self.sessions.copy()
+    
     def _is_session_expired(self, session: SessionInfo) -> bool:
         """Check if session has expired."""
         if session.updated_at is None:

@@ -384,6 +384,17 @@ class UDPService:
         
         # Create session in state machine
         session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
+        
+        # Debug logging for session creation
+        if self.config.debug_mode:
+            self.logger.info(f"STATE MACHINE SESSION CREATION:")
+            self.logger.info(f"  Session ID: {session_id}")
+            self.logger.info(f"  Master SAE: {message.master_sae_id}")
+            self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+            self.logger.info(f"  Message ID: {message.message_id}")
+            self.logger.info(f"  Key IDs: {message.key_ids}")
+            self.logger.info(f"  Rotation Timestamp: {message.rotation_timestamp}")
+        
         sync_state_machine.create_session(
             session_id=session_id,
             master_sae_id=message.master_sae_id,
@@ -460,6 +471,26 @@ class UDPService:
         
         # Update session in state machine
         session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
+        
+        # Debug logging for session lookup
+        if self.config.debug_mode:
+            self.logger.info(f"STATE MACHINE SESSION LOOKUP:")
+            self.logger.info(f"  Session ID: {session_id}")
+            self.logger.info(f"  Master SAE: {message.master_sae_id}")
+            self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+            self.logger.info(f"  Original Message ID: {message.original_message_id}")
+            self.logger.info(f"  Selected Key ID: {message.selected_key_id}")
+            
+            # Check if session exists
+            existing_session = sync_state_machine.get_session(session_id)
+            if existing_session:
+                self.logger.info(f"  Session Found: {existing_session.state.value}")
+            else:
+                self.logger.info(f"  Session NOT FOUND!")
+                # List all existing sessions for debugging
+                all_sessions = sync_state_machine.sessions
+                self.logger.info(f"  All Sessions: {list(all_sessions.keys())}")
+        
         sync_state_machine.update_session_state(
             session_id=session_id,
             new_state=SyncState.ACKNOWLEDGED,
