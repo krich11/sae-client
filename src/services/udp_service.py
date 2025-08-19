@@ -525,6 +525,7 @@ class UDPService:
                 self.logger.info(f"  Session ID Length: {len(session_id)}")
                 self.logger.info(f"  Session ID Characters: {[ord(c) for c in session_id[:20]]}...")
         
+        # Update global state machine session
         sync_state_machine.update_session_state(
             session_id=session_id,
             new_state=SyncState.ACKNOWLEDGED,
@@ -580,8 +581,16 @@ class UDPService:
                 "Address": f"{addr[0]}:{addr[1]}"
             })
         
-        # Update session
+        # Update session in global state machine
         session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
+        
+        # Update global state machine session
+        sync_state_machine.update_session_state(
+            session_id=session_id,
+            new_state=SyncState.CONFIRMED
+        )
+        
+        # Also update local session for backward compatibility
         if session_id in self.sessions:
             session = self.sessions[session_id]
             session.state = SyncState.CONFIRMED
