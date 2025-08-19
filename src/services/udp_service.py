@@ -602,16 +602,32 @@ class UDPService:
                 selected_key_id=message.key_ids[0] if message.key_ids else None
             )
             
-            # Send message
-            host, port = addr
-            success = self.send_message(ack_message, host, port)
+            # Look up master's configured address instead of using source address
+            from .sae_peers import sae_peers
+            master_address = sae_peers.get_peer_address(message.master_sae_id)
+            
+            if not master_address:
+                self.logger.error(f"Master {message.master_sae_id} not found in known peers")
+                return
+            
+            master_host, master_port = master_address
+            
+            # Debug logging for master address lookup
+            if self.config.debug_mode:
+                self.logger.info(f"SYNC MASTER ADDRESS LOOKUP:")
+                self.logger.info(f"  Master SAE: {message.master_sae_id}")
+                self.logger.info(f"  Found Address: {master_host}:{master_port}")
+                self.logger.info(f"  Original Source Address: {addr[0]}:{addr[1]}")
+            
+            # Send message to master's configured port
+            success = self.send_message(ack_message, master_host, master_port)
             
             if success:
                 self.logger.info("Sent key acknowledgment")
                 # Debug logging for successful send
                 if self.config.debug_mode:
                     self.logger.info(f"SYNC KEY ACKNOWLEDGMENT SENT:")
-                    self.logger.info(f"  To: {host}:{port}")
+                    self.logger.info(f"  To: {master_host}:{master_port}")
                     self.logger.info(f"  Message Type: NOTIFY-ACK")
                     self.logger.info(f"  Original Message: {message.message_id}")
             else:
@@ -639,9 +655,25 @@ class UDPService:
                 slave_sae_id=message.slave_sae_id
             )
             
-            # Send message
-            host, port = addr
-            success = self.send_message(conf_message, host, port)
+            # Look up slave's configured address instead of using source address
+            from .sae_peers import sae_peers
+            slave_address = sae_peers.get_peer_address(message.slave_sae_id)
+            
+            if not slave_address:
+                self.logger.error(f"Slave {message.slave_sae_id} not found in known peers")
+                return
+            
+            slave_host, slave_port = slave_address
+            
+            # Debug logging for slave address lookup
+            if self.config.debug_mode:
+                self.logger.info(f"SYNC SLAVE ADDRESS LOOKUP:")
+                self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+                self.logger.info(f"  Found Address: {slave_host}:{slave_port}")
+                self.logger.info(f"  Original Source Address: {addr[0]}:{addr[1]}")
+            
+            # Send message to slave's configured port
+            success = self.send_message(conf_message, slave_host, slave_port)
             
             if success:
                 self.logger.info("Sent rotation confirmation")
