@@ -35,6 +35,7 @@ COMMAND_HIERARCHY = {
                     'status': {'<sae_id>': {}},
                     'keys': {'[keyid <key_id>]': {}},
                     'sync': {'status': {}},
+                    'scheduled': {},
                     'personas': {},
                     'peer': {'[peer_id]': {}},
                     'env': {}
@@ -897,6 +898,7 @@ def show_help():
   show status <sae_id>          - Get ETSI status for a slave SAE
   show keys [keyid <key_id>]    - List local keys (optionally filter by key ID)
   show sync status              - Show synchronization status and sessions
+  show scheduled                - Show scheduled key rotations with timestamps
   show personas                 - List available device personas
   show peer [peer_id]           - List known SAE peers (optionally show specific peer)
 
@@ -953,7 +955,7 @@ def handle_show(args):
     """Handle show commands."""
     if not args:
         console.print("[yellow]Usage: show <subcommand>[/yellow]")
-        console.print("Available subcommands: health, status, keys, sync, personas, peer, env")
+        console.print("Available subcommands: health, status, keys, sync, scheduled, personas, peer, env")
         return
     
     subcommand = args[0].lower()
@@ -970,6 +972,8 @@ def handle_show(args):
         handle_show_personas()
     elif subcommand == 'peer':
         handle_show_peer(args[1:] if len(args) > 1 else [])
+    elif subcommand == 'scheduled':
+        handle_show_scheduled(args[1:] if len(args) > 1 else [])
     elif subcommand == 'env':
         handle_show_env(args[1:] if len(args) > 1 else [])
     else:
@@ -1302,6 +1306,86 @@ def handle_show_env(args):
         
     except Exception as e:
         console.print(f"[red]✗[/red] Error showing environment: {e}")
+
+
+def handle_show_scheduled(args):
+    """Handle show scheduled command."""
+    try:
+        from src.services.sync_state_machine import sync_state_machine
+        from rich.table import Table
+        import time
+        
+        # Get all active sessions with rotation timestamps
+        sessions = sync_state_machine.list_sessions()
+        scheduled_sessions = []
+        
+        current_time = time.time()
+        
+        for session in sessions.values():
+            if session.rotation_timestamp and session.rotation_timestamp > current_time:
+                scheduled_sessions.append(session)
+        
+        if not scheduled_sessions:
+            console.print("[yellow]No scheduled key rotations found[/yellow]")
+            return
+        
+        # Sort by rotation timestamp (earliest first)
+        scheduled_sessions.sort(key=lambda x: x.rotation_timestamp)
+        
+        # Create scheduled table
+        table = Table(title="Scheduled Key Rotations")
+        table.add_column("Session ID", style="cyan", width=20)
+        table.add_column("Master SAE", style="green", width=10)
+        table.add_column("Slave SAE", style="blue", width=10)
+        table.add_column("Key IDs", style="magenta", width=30)
+        table.add_column("Rotation Time", style="white", width=25)
+        table.add_column("Time Until", style="yellow", width=20)
+        
+        for session in scheduled_sessions:
+            # Calculate time until rotation
+            time_until = session.rotation_timestamp - current_time
+            
+            # Format time until (hours, minutes, seconds)
+            hours = int(time_until // 3600)
+            minutes = int((time_until % 3600) // 60)
+            seconds = int(time_until % 60)
+            
+            # Build time string, truncating zero values
+            time_parts = []
+            if hours > 0:
+                time_parts.append(f"{hours}h")
+            if minutes > 0:
+                time_parts.append(f"{minutes}m")
+            if seconds > 0 or not time_parts:  # Always show seconds if no other parts
+                time_parts.append(f"{seconds}s")
+            
+            time_until_str = " ".join(time_parts)
+            
+            # Format rotation time
+            rotation_time = time.ctime(session.rotation_timestamp)
+            
+            # Truncate session ID for display
+            session_id_display = session.session_id[:17] + "..." if len(session.session_id) > 20 else session.session_id
+            
+            # Truncate key IDs for display
+            key_ids_display = ", ".join(session.key_ids[:2])  # Show first 2 key IDs
+            if len(session.key_ids) > 2:
+                key_ids_display += f" (+{len(session.key_ids) - 2} more)"
+            
+            table.add_row(
+                session_id_display,
+                session.master_sae_id,
+                session.slave_sae_id,
+                key_ids_display,
+                rotation_time,
+                f"({time_until_str})"
+            )
+        
+        console.print(table)
+        console.print(f"[green]✓[/green] Found {len(scheduled_sessions)} scheduled key rotation(s)")
+        
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error displaying scheduled rotations: {e}")
 
 
 def handle_key(args):
