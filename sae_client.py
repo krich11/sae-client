@@ -1393,25 +1393,82 @@ def handle_key_notify(args):
         
         # Use the first available key
         key = available_keys[0]
-        key_data = {
-            'key_type': key.key_type,
-            'key_size': key.key_size,
-            'key_material': key.key_material,
-            'expiry_time': key.expiry_time.isoformat() if key.expiry_time else None
-        }
         
-        # Make the notification
-        success = master_notification_service.notify_slave_available_key(
-            slave_id, key.key_id, key_data
+        # Debug logging for key notification
+        if config_manager.config.debug_mode:
+            console.print(f"[blue]DEBUG:[/blue] Notifying slave {slave_id} about key {key.key_id}")
+            console.print(f"[blue]DEBUG:[/blue] Key type: {key.key_type}")
+            console.print(f"[blue]DEBUG:[/blue] Key size: {key.key_size} bits")
+            console.print(f"[blue]DEBUG:[/blue] Key material: {key.key_material[:50]}..." if len(key.key_material) > 50 else f"[blue]DEBUG:[/blue] Key material: {key.key_material}")
+        
+        # Use UDP synchronization system for actual network communication
+        from src.services.udp_service import udp_service
+        from src.utils.message_signer import message_signer
+        from src.services.sae_peers import sae_peers
+        import time
+        
+        # Try to get slave address from known peers
+        peer_address = sae_peers.get_peer_address(slave_id)
+        if not peer_address:
+            console.print(f"[red]✗[/red] Slave {slave_id} not found in known peers")
+            console.print(f"[yellow]Use 'peer add' command to add {slave_id} to known peers first[/yellow]")
+            return
+        
+        slave_host, slave_port = peer_address
+        
+        # Debug logging for peer lookup
+        if config_manager.config.debug_mode:
+            console.print(f"[blue]DEBUG:[/blue] Found slave {slave_id} in known peers: {slave_host}:{slave_port}")
+        
+        # Calculate rotation timestamp (5 minutes in the future)
+        rotation_timestamp = int(time.time()) + 300  # 5 minutes
+        
+        # Debug logging for timestamp calculation
+        if config_manager.config.debug_mode:
+            console.print(f"[blue]DEBUG:[/blue] Current time: {time.ctime()}")
+            console.print(f"[blue]DEBUG:[/blue] Rotation timestamp: {rotation_timestamp}")
+            console.print(f"[blue]DEBUG:[/blue] Rotation time: {time.ctime(rotation_timestamp)}")
+        
+        # Create key notification message
+        signed_message = message_signer.create_key_notification(
+            key_ids=[key.key_id],
+            rotation_timestamp=rotation_timestamp,
+            master_sae_id=config.sae_id,
+            slave_sae_id=slave_id
         )
         
+        # Debug logging for message creation
+        if config_manager.config.debug_mode:
+            console.print(f"[blue]DEBUG:[/blue] Created signed message")
+            console.print(f"[blue]DEBUG:[/blue] Message ID: {signed_message.payload[:50]}...")
+            console.print(f"[blue]DEBUG:[/blue] Signature size: {len(signed_message.signature)} bytes")
+            console.print(f"[blue]DEBUG:[/blue] Full message payload: {signed_message.payload}")
+            console.print(f"[blue]DEBUG:[/blue] Full signature: {signed_message.signature}")
+        
+        # Send message via UDP
+        success = udp_service.send_message(signed_message, slave_host, slave_port)
+        
         if success:
-            console.print(f"[green]✓[/green] Successfully notified slave {slave_id} about key {key.key_id}")
+            console.print(f"[green]✓[/green] Successfully notified slave {slave_id}")
+            console.print(f"[green]✓[/green] Key ID: {key.key_id}")
+            console.print(f"[green]✓[/green] Rotation timestamp: {rotation_timestamp}")
+            console.print(f"[green]✓[/green] Rotation time: {time.ctime(rotation_timestamp)}")
+            console.print(f"[green]✓[/green] Sent to: {slave_host}:{slave_port}")
+            
+            # Debug logging for successful send
+            if config_manager.config.debug_mode:
+                console.print(f"[blue]DEBUG:[/blue] UDP message sent successfully")
+                console.print(f"[blue]DEBUG:[/blue] Waiting for acknowledgment from slave...")
         else:
             console.print(f"[red]✗[/red] Failed to notify slave {slave_id}")
+            console.print(f"[red]✗[/red] UDP send failed to {slave_host}:{slave_port}")
             
     except Exception as e:
         console.print(f"[red]✗[/red] Error notifying slave: {e}")
+        if config_manager.config.debug_mode:
+            import traceback
+            console.print(f"[blue]DEBUG:[/blue] Full error traceback:")
+            console.print(traceback.format_exc())
 
 
 def handle_persona(args):
