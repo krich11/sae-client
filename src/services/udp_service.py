@@ -696,11 +696,29 @@ class UDPService:
         try:
             # Find session to get rotation timestamp
             session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
-            session = self.sessions.get(session_id)
+            session = sync_state_machine.get_session(session_id)
             
             if not session or not session.rotation_timestamp:
                 self.logger.error("Session or rotation timestamp not found")
+                if self.config.debug_mode:
+                    self.logger.info(f"ROTATION CONFIRMATION DEBUG:")
+                    self.logger.info(f"  Session ID: {session_id}")
+                    self.logger.info(f"  Session Found: {session is not None}")
+                    if session:
+                        self.logger.info(f"  Rotation Timestamp: {session.rotation_timestamp}")
+                    # List all sessions in state machine
+                    all_sessions = sync_state_machine.list_sessions()
+                    self.logger.info(f"  All State Machine Sessions: {list(all_sessions.keys())}")
                 return
+            
+            # Debug logging for rotation confirmation creation
+            if self.config.debug_mode:
+                self.logger.info(f"ROTATION CONFIRMATION CREATION:")
+                self.logger.info(f"  Session ID: {session_id}")
+                self.logger.info(f"  Original Message ID: {message.original_message_id}")
+                self.logger.info(f"  Rotation Timestamp: {session.rotation_timestamp}")
+                self.logger.info(f"  Master SAE: {message.master_sae_id}")
+                self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
             
             # Create confirmation message
             conf_message = message_signer.create_rotation_confirmation(
