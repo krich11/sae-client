@@ -1458,7 +1458,7 @@ def handle_key_notify(args):
             # Debug logging for successful send
             if config_manager.config.debug_mode:
                 console.print(f"[blue]DEBUG:[/blue] UDP message sent successfully")
-                console.print(f"[blue]DEBUG:[/blue] Waiting for acknowledgment from slave...")
+                console.print(f"[blue]DEBUG:[/blue] Key notification sent - slave will respond with acknowledgment")
         else:
             console.print(f"[red]✗[/red] Failed to notify slave {slave_id}")
             console.print(f"[red]✗[/red] UDP send failed to {slave_host}:{slave_port}")

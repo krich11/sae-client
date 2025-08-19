@@ -141,6 +141,17 @@ class UDPService:
                 try:
                     message_json = data.decode('utf-8')
                     self.logger.info(f"UDP MESSAGE JSON: {json.dumps(json.loads(message_json), indent=2)}")
+                    
+                    # Decode and display the payload
+                    try:
+                        import base64
+                        message_data = json.loads(message_json)
+                        payload_bytes = base64.b64decode(message_data.get('payload', ''))
+                        payload_json = json.loads(payload_bytes.decode('utf-8'))
+                        self.logger.info(f"UDP MESSAGE PAYLOAD (DECODED): {json.dumps(payload_json, indent=2)}")
+                    except Exception as e:
+                        self.logger.warning(f"Failed to decode payload: {e}")
+                        
                 except:
                     self.logger.info(f"UDP MESSAGE RAW: {data}")
             
@@ -248,6 +259,16 @@ class UDPService:
                 self.logger.info(f"UDP MESSAGE SEND: {host}:{port}")
                 message_json = message.json()
                 self.logger.info(f"UDP MESSAGE JSON: {json.dumps(json.loads(message_json), indent=2)}")
+                
+                # Decode and display the payload
+                try:
+                    import base64
+                    payload_bytes = base64.b64decode(message.payload)
+                    payload_json = json.loads(payload_bytes.decode('utf-8'))
+                    self.logger.info(f"UDP MESSAGE PAYLOAD (DECODED): {json.dumps(payload_json, indent=2)}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to decode payload: {e}")
+                
                 self.logger.info(f"UDP MESSAGE SIZE: {len(message_json.encode('utf-8'))} bytes")
             
             # Create temporary socket for sending
@@ -344,6 +365,16 @@ class UDPService:
         
         self.logger.info(f"Received key acknowledgment from {message.slave_sae_id}")
         self.logger.info(f"Selected key: {message.selected_key_id}")
+        
+        # Enhanced debug logging for acknowledgment receipt
+        if self.config.debug_mode:
+            self.logger.info(f"SYNC KEY ACKNOWLEDGMENT PROCESSED:")
+            self.logger.info(f"  From: {message.slave_sae_id}")
+            self.logger.info(f"  To: {message.master_sae_id}")
+            self.logger.info(f"  Original Message: {message.original_message_id}")
+            self.logger.info(f"  Selected Key: {message.selected_key_id}")
+            self.logger.info(f"  Status: {message.status}")
+            self.logger.info(f"  Address: {addr[0]}:{addr[1]}")
         
         # Console notification for interactive mode
         if self.config.debug_mode:
@@ -478,6 +509,14 @@ class UDPService:
     def _send_key_acknowledgment(self, message, addr):
         """Send key acknowledgment message."""
         try:
+            # Debug logging for acknowledgment creation
+            if self.config.debug_mode:
+                self.logger.info(f"SYNC KEY ACKNOWLEDGMENT CREATION:")
+                self.logger.info(f"  Original Message ID: {message.message_id}")
+                self.logger.info(f"  Master SAE: {message.master_sae_id}")
+                self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+                self.logger.info(f"  Selected Key ID: {message.key_ids[0] if message.key_ids else 'None'}")
+            
             # Create acknowledgment message
             ack_message = message_signer.create_key_acknowledgment(
                 original_message_id=message.message_id,
@@ -492,6 +531,12 @@ class UDPService:
             
             if success:
                 self.logger.info("Sent key acknowledgment")
+                # Debug logging for successful send
+                if self.config.debug_mode:
+                    self.logger.info(f"SYNC KEY ACKNOWLEDGMENT SENT:")
+                    self.logger.info(f"  To: {host}:{port}")
+                    self.logger.info(f"  Message Type: NOTIFY-ACK")
+                    self.logger.info(f"  Original Message: {message.message_id}")
             else:
                 self.logger.error("Failed to send key acknowledgment")
                 

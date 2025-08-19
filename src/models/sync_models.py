@@ -129,6 +129,7 @@ class SignedMessage(BaseModel):
     signature: str = Field(..., description="Base64-encoded RSA-SHA256 signature")
     sender_sae_id: str = Field(..., description="SAE ID of the message sender")
     public_key: str = Field(..., description="PEM-encoded public key of the sender")
+    type: str = Field(..., description="Message type: NOTIFY, NOTIFY-ACK, ACK")
     
     @validator('payload')
     def validate_payload(cls, v):

@@ -15,7 +15,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.exceptions import InvalidSignature
 
 from ..config import config_manager
-from ..models.sync_models import SignedMessage, BaseSyncMessage
+from ..models.sync_models import SignedMessage, BaseSyncMessage, MessageType
 
 
 class MessageSigner:
@@ -106,11 +106,15 @@ class MessageSigner:
             payload_b64 = base64.b64encode(message_json.encode('utf-8')).decode('utf-8')
             signature_b64 = base64.b64encode(signature).decode('utf-8')
             
+            # Determine message type based on message content
+            message_type = self._get_message_type(message)
+            
             signed_message = SignedMessage(
                 payload=payload_b64,
                 signature=signature_b64,
                 sender_sae_id=sae_id,
-                public_key=public_key_pem
+                public_key=public_key_pem,
+                type=message_type
             )
             
             # Debug logging for message signing
@@ -127,6 +131,27 @@ class MessageSigner:
             
             self.logger.debug(f"Signed message {message.message_id} for SAE {sae_id}")
             return signed_message
+    
+    def _get_message_type(self, message: BaseSyncMessage) -> str:
+        """
+        Determine the message type for the SignedMessage type field.
+        
+        Args:
+            message: The base sync message
+            
+        Returns:
+            str: Message type (NOTIFY, NOTIFY-ACK, ACK)
+        """
+        if message.message_type == MessageType.KEY_NOTIFICATION:
+            return "NOTIFY"
+        elif message.message_type == MessageType.KEY_ACKNOWLEDGMENT:
+            return "NOTIFY-ACK"
+        elif message.message_type == MessageType.ROTATION_CONFIRMATION:
+            return "ACK"
+        elif message.message_type == MessageType.ERROR:
+            return "ERROR"
+        else:
+            return "UNKNOWN"
             
         except Exception as e:
             self.logger.error(f"Failed to sign message: {e}")
