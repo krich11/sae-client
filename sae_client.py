@@ -1558,6 +1558,8 @@ def handle_key_notify(args):
                 console.print(f"[blue]DEBUG:[/blue] Creating master session for tracking")
                 console.print(f"[blue]DEBUG:[/blue] Session ID: {session_id}")
                 console.print(f"[blue]DEBUG:[/blue] Message ID: {message_id}")
+                console.print(f"[blue]DEBUG:[/blue] Session ID Length: {len(session_id)}")
+                console.print(f"[blue]DEBUG:[/blue] Session ID Characters: {[ord(c) for c in session_id[:20]]}...")
             
             # Create session in state machine
             sync_state_machine.create_session(

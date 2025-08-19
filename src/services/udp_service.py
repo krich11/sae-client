@@ -490,6 +490,9 @@ class UDPService:
                 # List all existing sessions for debugging
                 all_sessions = sync_state_machine.sessions
                 self.logger.info(f"  All Sessions: {list(all_sessions.keys())}")
+                self.logger.info(f"  Expected Session ID: {session_id}")
+                self.logger.info(f"  Session ID Length: {len(session_id)}")
+                self.logger.info(f"  Session ID Characters: {[ord(c) for c in session_id[:20]]}...")
         
         sync_state_machine.update_session_state(
             session_id=session_id,
