@@ -126,7 +126,7 @@ class SyncStateMachine:
         # Debug logging for state validation
         if self.config.debug_mode:
             self.logger.info(f"STATE MACHINE VALIDATION DEBUG:")
-            self.logger.info(f"  Session ID: {session_id}")
+            self.logger.info(f"  Session ID: {session.session_id}")
             self.logger.info(f"  Current State Object: {current_state}")
             self.logger.info(f"  Current State Type: {type(current_state)}")
             self.logger.info(f"  Current State Value: {current_state.value if hasattr(current_state, 'value') else 'No value'}")
