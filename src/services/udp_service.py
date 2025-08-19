@@ -213,10 +213,16 @@ class UDPService:
                 self.logger.info(f"UDP MESSAGE TIMESTAMP: {message.timestamp}")
             
             # State machine validation
-            # For acknowledgments, use the original_message_id to find the session
+            # For acknowledgments and sync confirmations, use the original_message_id to find the session
             if message.message_type == MessageType.KEY_ACKNOWLEDGMENT:
                 from ..models.sync_models import KeyAcknowledgmentMessage
                 if isinstance(message, KeyAcknowledgmentMessage):
+                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
+                else:
+                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
+            elif message.message_type == MessageType.SYNC_CONFIRMATION:
+                from ..models.sync_models import SyncConfirmationMessage
+                if isinstance(message, SyncConfirmationMessage):
                     session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
                 else:
                     session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
@@ -231,6 +237,10 @@ class UDPService:
                 if message.message_type == MessageType.KEY_ACKNOWLEDGMENT:
                     from ..models.sync_models import KeyAcknowledgmentMessage
                     if isinstance(message, KeyAcknowledgmentMessage):
+                        self.logger.info(f"  Original Message ID: {message.original_message_id}")
+                elif message.message_type == MessageType.SYNC_CONFIRMATION:
+                    from ..models.sync_models import SyncConfirmationMessage
+                    if isinstance(message, SyncConfirmationMessage):
                         self.logger.info(f"  Original Message ID: {message.original_message_id}")
                 self.logger.info(f"  Session ID: {session_id}")
                 self.logger.info(f"  Master SAE: {message.master_sae_id}")
