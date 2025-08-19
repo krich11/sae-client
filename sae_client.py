@@ -30,14 +30,15 @@ console = Console()
 
 # Hierarchical command structure for autocomplete
 COMMAND_HIERARCHY = {
-    'show': {
-        'health': {},
-        'status': {'<sae_id>': {}},
-        'keys': {'[keyid <key_id>]': {}},
-        'sync': {'status': {}},
-        'personas': {},
-        'peer': {'[peer_id]': {}}
-    },
+                    'show': {
+                    'health': {},
+                    'status': {'<sae_id>': {}},
+                    'keys': {'[keyid <key_id>]': {}},
+                    'sync': {'status': {}},
+                    'personas': {},
+                    'peer': {'[peer_id]': {}},
+                    'env': {}
+                },
     'key': {
         'request': {
             'encryption': {
@@ -112,10 +113,8 @@ def command_completer(text, state):
                 return None
     
     if state < len(options):
-        # Add space after first level commands for easier continuation
-        if len(words) == 1:
-            return options[state] + " "
-        return options[state]
+        # Add space after all completions for easier continuation
+        return options[state] + " "
     return None
 
 
@@ -911,7 +910,7 @@ def handle_show(args):
     """Handle show commands."""
     if not args:
         console.print("[yellow]Usage: show <subcommand>[/yellow]")
-        console.print("Available subcommands: health, status, keys, sync, personas, peer")
+        console.print("Available subcommands: health, status, keys, sync, personas, peer, env")
         return
     
     subcommand = args[0].lower()
@@ -928,6 +927,8 @@ def handle_show(args):
         handle_show_personas()
     elif subcommand == 'peer':
         handle_show_peer(args[1:] if len(args) > 1 else [])
+    elif subcommand == 'env':
+        handle_show_env(args[1:] if len(args) > 1 else [])
     else:
         console.print(f"[yellow]Unknown show subcommand: {subcommand}[/yellow]")
 
@@ -1211,6 +1212,53 @@ def handle_show_peer(args):
             
     except Exception as e:
         console.print(f"[red]✗[/red] Error with peer operations: {e}")
+
+
+def handle_show_env(args):
+    """Handle show env command."""
+    try:
+        from src.config import config_manager
+        
+        # Get all configuration values
+        config = config_manager.config
+        
+        # Create environment table
+        table = Table(title="Environment Configuration")
+        table.add_column("Variable", style="cyan", width=30)
+        table.add_column("Value", style="green", width=50)
+        table.add_column("Source", style="yellow", width=15)
+        
+        # Get all fields from the config
+        for field_name, field in config.__fields__.items():
+            value = getattr(config, field_name)
+            
+            # Format the value for display
+            if isinstance(value, list):
+                display_value = str(value)
+            elif isinstance(value, bool):
+                display_value = "True" if value else "False"
+            elif value is None:
+                display_value = "None"
+            else:
+                display_value = str(value)
+            
+            # Truncate long values
+            if len(display_value) > 45:
+                display_value = display_value[:42] + "..."
+            
+            # Determine source (env file or default)
+            source = "ENV" if hasattr(config, '_env_file') else "DEFAULT"
+            
+            table.add_row(field_name, display_value, source)
+        
+        console.print(table)
+        
+        # Show additional info
+        console.print(f"\n[dim]Configuration loaded from: {config_manager.config_file}[/dim]")
+        console.print(f"[dim]Total configuration variables: {len(config.__fields__)}[/dim]")
+        
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error showing environment: {e}")
 
 
 def handle_key(args):
