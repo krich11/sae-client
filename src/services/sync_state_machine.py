@@ -123,6 +123,19 @@ class SyncStateMachine:
         """
         current_state = session.state
         
+        # Debug logging for state validation
+        if self.config.debug_mode:
+            self.logger.info(f"STATE MACHINE VALIDATION DEBUG:")
+            self.logger.info(f"  Session ID: {session_id}")
+            self.logger.info(f"  Current State Object: {current_state}")
+            self.logger.info(f"  Current State Type: {type(current_state)}")
+            self.logger.info(f"  Current State Value: {current_state.value if hasattr(current_state, 'value') else 'No value'}")
+            self.logger.info(f"  SyncState.ACKNOWLEDGED: {SyncState.ACKNOWLEDGED}")
+            self.logger.info(f"  SyncState.ACKNOWLEDGED Type: {type(SyncState.ACKNOWLEDGED)}")
+            self.logger.info(f"  SyncState.ACKNOWLEDGED Value: {SyncState.ACKNOWLEDGED.value}")
+            self.logger.info(f"  States Match: {current_state == SyncState.ACKNOWLEDGED}")
+            self.logger.info(f"  Values Match: {current_state.value == SyncState.ACKNOWLEDGED.value if hasattr(current_state, 'value') else 'No value'}")
+        
         # Determine if receiver is master or slave
         is_master = receiver_sae_id == session.master_sae_id
         is_slave = receiver_sae_id == session.slave_sae_id
