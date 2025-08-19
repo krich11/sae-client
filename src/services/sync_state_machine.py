@@ -144,13 +144,13 @@ class SyncStateMachine:
             return False, f"Receiver {receiver_sae_id} is not part of session {session.session_id}"
         
         # State transition rules
-        if current_state == SyncState.IDLE:
+        if current_state.value == SyncState.IDLE.value:
             if message_type == MessageType.NOTIFY and is_slave:
                 return True, "Slave accepting initial notification"
             else:
                 return False, f"Invalid message {message_type.value} in {current_state.value} state"
         
-        elif current_state == SyncState.NOTIFIED:
+        elif current_state.value == SyncState.NOTIFIED.value:
             if message_type == MessageType.NOTIFY_ACK and is_master:
                 return True, "Master accepting acknowledgment"
             elif message_type == MessageType.NOTIFY and is_slave:
@@ -158,7 +158,7 @@ class SyncStateMachine:
             else:
                 return False, f"Invalid message {message_type.value} in {current_state.value} state"
         
-        elif current_state == SyncState.ACKNOWLEDGED:
+        elif current_state.value == SyncState.ACKNOWLEDGED.value:
             if message_type == MessageType.ACK and is_slave:
                 return True, "Slave accepting sync confirmation"
             elif message_type == MessageType.NOTIFY and is_slave:
@@ -166,19 +166,19 @@ class SyncStateMachine:
             else:
                 return False, f"Invalid message {message_type.value} in {current_state.value} state"
         
-        elif current_state == SyncState.CONFIRMED:
+        elif current_state.value == SyncState.CONFIRMED.value:
             if message_type == MessageType.NOTIFY and is_slave:
                 return True, "Slave accepting new notification"
             else:
                 return False, f"Invalid message {message_type.value} in {current_state.value} state"
         
-        elif current_state == SyncState.ROTATING:
+        elif current_state.value == SyncState.ROTATING.value:
             if message_type == MessageType.NOTIFY and is_slave:
                 return True, "Slave accepting new notification during rotation"
             else:
                 return False, f"Invalid message {message_type.value} in {current_state.value} state"
         
-        elif current_state == SyncState.ERROR:
+        elif current_state.value == SyncState.ERROR.value:
             if message_type == MessageType.NOTIFY and is_slave:
                 return True, "Slave accepting new notification after error"
             else:
