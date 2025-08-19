@@ -152,10 +152,6 @@ class MessageSigner:
             return "ERROR"
         else:
             return "UNKNOWN"
-            
-        except Exception as e:
-            self.logger.error(f"Failed to sign message: {e}")
-            raise
     
     def verify_message(self, signed_message: SignedMessage, expected_sender: str) -> Optional[BaseSyncMessage]:
         """
