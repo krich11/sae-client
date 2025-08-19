@@ -10,6 +10,7 @@ import shutil
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from pathlib import Path
+from contextlib import contextmanager
 
 from ..config import config_manager, logger
 from ..models.api_models import LocalKey
