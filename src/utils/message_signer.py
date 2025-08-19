@@ -221,18 +221,24 @@ class MessageSigner:
             bool: True if signature is valid
         """
         try:
-            # For now, we'll use our own public key for verification
-            # In a real implementation, you'd load the sender's public key
-            # from a certificate store or PKI
-            if not self._public_key:
-                self.logger.warning("Public key not available for verification")
+            # Load the sender's public key
+            sender_public_key = self._load_sender_public_key(sender_sae_id)
+            if not sender_public_key:
+                self.logger.warning(f"Public key not available for sender {sender_sae_id}")
                 return False
             
             # Create hash of the payload
             payload_hash = hashlib.sha256(payload).digest()
             
+            # Debug logging for signature verification
+            if self.config.debug_mode:
+                self.logger.info(f"SIGNATURE VERIFICATION DETAILS:")
+                self.logger.info(f"  Sender SAE ID: {sender_sae_id}")
+                self.logger.info(f"  Payload hash: {payload_hash.hex()}")
+                self.logger.info(f"  Signature: {signature.hex()}")
+            
             # Verify signature
-            self._public_key.verify(
+            sender_public_key.verify(
                 signature,
                 payload_hash,
                 padding.PSS(
@@ -250,6 +256,55 @@ class MessageSigner:
         except Exception as e:
             self.logger.error(f"Signature verification error: {e}")
             return False
+    
+    def _load_sender_public_key(self, sender_sae_id: str):
+        """
+        Load the public key for a specific sender SAE.
+        
+        Args:
+            sender_sae_id: SAE ID of the sender
+            
+        Returns:
+            Public key object or None if not found
+        """
+        try:
+            # For now, we'll use a simple approach: look for certificates in a certs directory
+            # In a real implementation, this would use a proper PKI or certificate store
+            
+            # Try to load from a certs directory structure
+            cert_dir = Path("certs")
+            if cert_dir.exists():
+                # Look for sender's certificate
+                sender_cert_path = cert_dir / sender_sae_id.lower() / f"{sender_sae_id.lower()}.crt"
+                if sender_cert_path.exists():
+                    with open(sender_cert_path, 'rb') as f:
+                        cert_data = f.read()
+                        from cryptography import x509
+                        cert = x509.load_pem_x509_certificate(cert_data, default_backend())
+                        public_key = cert.public_key()
+                        self.logger.info(f"Loaded public key for {sender_sae_id} from {sender_cert_path}")
+                        return public_key
+                
+                # If not found, try alternative naming
+                sender_cert_path = cert_dir / "sae" / f"{sender_sae_id.lower()}.crt"
+                if sender_cert_path.exists():
+                    with open(sender_cert_path, 'rb') as f:
+                        cert_data = f.read()
+                        from cryptography import x509
+                        cert = x509.load_pem_x509_certificate(cert_data, default_backend())
+                        public_key = cert.public_key()
+                        self.logger.info(f"Loaded public key for {sender_sae_id} from {sender_cert_path}")
+                        return public_key
+            
+            # If we can't find the sender's certificate, for testing purposes,
+            # we'll use our own public key (this is NOT secure for production!)
+            if self.config.debug_mode:
+                self.logger.warning(f"Could not find certificate for {sender_sae_id}, using own public key for testing")
+            return self._public_key
+            
+        except Exception as e:
+            self.logger.error(f"Failed to load public key for {sender_sae_id}: {e}")
+            return None
     
     def create_key_notification(self, key_ids: list, rotation_timestamp: int, 
                               master_sae_id: str, slave_sae_id: str) -> SignedMessage:
