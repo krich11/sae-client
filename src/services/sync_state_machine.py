@@ -172,6 +172,16 @@ class SyncStateMachine:
                 return False, f"Invalid message {message_type.value} in {current_state.value} state"
         
         else:
+            # Debug logging to see what state we actually have
+            if self.config.debug_mode:
+                self.logger.info(f"STATE MACHINE DEBUG - Unknown state:")
+                self.logger.info(f"  Current State: {current_state}")
+                self.logger.info(f"  Current State Type: {type(current_state)}")
+                self.logger.info(f"  Current State Value: {current_state.value if hasattr(current_state, 'value') else 'No value'}")
+                self.logger.info(f"  Expected States: {[state.value for state in SyncState]}")
+                self.logger.info(f"  Message Type: {message_type}")
+                self.logger.info(f"  Is Master: {is_master}")
+                self.logger.info(f"  Is Slave: {is_slave}")
             return False, f"Unknown state: {current_state}"
     
     def update_session_state(self, session_id: str, new_state: SyncState, 
