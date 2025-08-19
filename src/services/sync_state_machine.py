@@ -27,7 +27,7 @@ class MessageType(Enum):
     """Message types for state validation."""
     NOTIFY = "key_notification"
     NOTIFY_ACK = "key_acknowledgment"
-    ACK = "rotation_confirmation"
+    ACK = "sync_confirmation"
     ERROR = "error"
 
 

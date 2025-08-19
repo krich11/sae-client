@@ -43,7 +43,7 @@ class UDPService:
         """Register default message handlers."""
         self.register_handler(MessageType.KEY_NOTIFICATION, self._handle_key_notification)
         self.register_handler(MessageType.KEY_ACKNOWLEDGMENT, self._handle_key_acknowledgment)
-        self.register_handler(MessageType.ROTATION_CONFIRMATION, self._handle_rotation_confirmation)
+        self.register_handler(MessageType.SYNC_CONFIRMATION, self._handle_sync_confirmation)
         self.register_handler(MessageType.ERROR, self._handle_error_message)
     
     def register_handler(self, message_type: MessageType, handler: Callable):
@@ -305,7 +305,7 @@ class UDPService:
         mapping = {
             MessageType.KEY_NOTIFICATION: StateMessageType.NOTIFY,
             MessageType.KEY_ACKNOWLEDGMENT: StateMessageType.NOTIFY_ACK,
-            MessageType.ROTATION_CONFIRMATION: StateMessageType.ACK,
+            MessageType.SYNC_CONFIRMATION: StateMessageType.ACK,
             MessageType.ERROR: StateMessageType.ERROR
         }
         return mapping.get(message_type, StateMessageType.ERROR)
@@ -536,35 +536,35 @@ class UDPService:
                 self.logger.info(f"  Selected Key: {session.selected_key_id}")
                 self.logger.info(f"  Updated: {session.updated_at}")
         
-        # Send rotation confirmation
-        self._send_rotation_confirmation(message, addr)
+        # Send sync confirmation
+        self._send_sync_confirmation(message, addr)
     
-    def _handle_rotation_confirmation(self, message: BaseSyncMessage, addr: tuple):
-        """Handle rotation confirmation message."""
-        from ..models.sync_models import RotationConfirmationMessage
+    def _handle_sync_confirmation(self, message: BaseSyncMessage, addr: tuple):
+        """Handle sync confirmation message."""
+        from ..models.sync_models import SyncConfirmationMessage
         
-        if not isinstance(message, RotationConfirmationMessage):
-            self.logger.error("Invalid message type for rotation confirmation handler")
+        if not isinstance(message, SyncConfirmationMessage):
+            self.logger.error("Invalid message type for sync confirmation handler")
             return
         
-        # Debug logging for rotation confirmation
+        # Debug logging for sync confirmation
         if self.config.debug_mode:
-            self.logger.info(f"SYNC ROTATION CONFIRMATION RECEIVED:")
+            self.logger.info(f"SYNC CONFIRMATION RECEIVED:")
             self.logger.info(f"  Master SAE: {message.master_sae_id}")
             self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
             self.logger.info(f"  Original Message ID: {message.original_message_id}")
-            self.logger.info(f"  Rotation Timestamp: {message.rotation_timestamp}")
-            self.logger.info(f"  Rotation Time: {time.ctime(message.rotation_timestamp)}")
+            self.logger.info(f"  Final Rotation Timestamp: {message.final_rotation_timestamp}")
+            self.logger.info(f"  Final Rotation Time: {time.ctime(message.final_rotation_timestamp)}")
         
-        self.logger.info(f"Received rotation confirmation from {message.master_sae_id}")
-        self.logger.info(f"Rotation timestamp: {message.rotation_timestamp}")
+        self.logger.info(f"Received sync confirmation from {message.master_sae_id}")
+        self.logger.info(f"Final rotation timestamp: {message.final_rotation_timestamp}")
         
         # Console notification for interactive mode
         if self.config.debug_mode:
-            self._print_console_notification("ROTATION CONFIRMATION", {
+            self._print_console_notification("SYNC CONFIRMATION", {
                 "From": message.master_sae_id,
                 "To": message.slave_sae_id,
-                "Rotation Time": time.ctime(message.rotation_timestamp),
+                "Final Rotation Time": time.ctime(message.final_rotation_timestamp),
                 "Original Message": message.original_message_id[:8] + "...",
                 "Signature": "✓ VALID",
                 "Address": f"{addr[0]}:{addr[1]}"
@@ -691,8 +691,8 @@ class UDPService:
         except Exception as e:
             self.logger.error(f"Error sending key acknowledgment: {e}")
     
-    def _send_rotation_confirmation(self, message, addr):
-        """Send rotation confirmation message."""
+    def _send_sync_confirmation(self, message, addr):
+        """Send sync confirmation message."""
         try:
             # Find session to get rotation timestamp
             session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
@@ -711,19 +711,19 @@ class UDPService:
                     self.logger.info(f"  All State Machine Sessions: {list(all_sessions.keys())}")
                 return
             
-            # Debug logging for rotation confirmation creation
+            # Debug logging for sync confirmation creation
             if self.config.debug_mode:
-                self.logger.info(f"ROTATION CONFIRMATION CREATION:")
+                self.logger.info(f"SYNC CONFIRMATION CREATION:")
                 self.logger.info(f"  Session ID: {session_id}")
                 self.logger.info(f"  Original Message ID: {message.original_message_id}")
-                self.logger.info(f"  Rotation Timestamp: {session.rotation_timestamp}")
+                self.logger.info(f"  Final Rotation Timestamp: {session.rotation_timestamp}")
                 self.logger.info(f"  Master SAE: {message.master_sae_id}")
                 self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
             
             # Create confirmation message
-            conf_message = message_signer.create_rotation_confirmation(
+            conf_message = message_signer.create_sync_confirmation(
                 original_message_id=message.original_message_id,
-                rotation_timestamp=session.rotation_timestamp,
+                final_rotation_timestamp=session.rotation_timestamp,
                 master_sae_id=message.master_sae_id,
                 slave_sae_id=message.slave_sae_id
             )
@@ -749,35 +749,35 @@ class UDPService:
             success = self.send_message(conf_message, slave_host, slave_port)
             
             if success:
-                self.logger.info("Sent rotation confirmation")
+                self.logger.info("Sent sync confirmation")
             else:
-                self.logger.error("Failed to send rotation confirmation")
+                self.logger.error("Failed to send sync confirmation")
                 
         except Exception as e:
-            self.logger.error(f"Error sending rotation confirmation: {e}")
+            self.logger.error(f"Error sending sync confirmation: {e}")
     
     def _schedule_key_rotation(self, message):
         """Schedule key rotation at the specified timestamp."""
         try:
-            from ..models.sync_models import RotationConfirmationMessage
+            from ..models.sync_models import SyncConfirmationMessage
             
-            if not isinstance(message, RotationConfirmationMessage):
+            if not isinstance(message, SyncConfirmationMessage):
                 return
             
             # Calculate delay until rotation
             current_time = int(datetime.now().timestamp())
-            delay = message.rotation_timestamp - current_time
+            delay = message.final_rotation_timestamp - current_time
             
             # Debug logging for rotation scheduling
             if self.config.debug_mode:
                 self.logger.info(f"SYNC ROTATION SCHEDULING:")
                 self.logger.info(f"  Current Time: {current_time} ({time.ctime(current_time)})")
-                self.logger.info(f"  Rotation Time: {message.rotation_timestamp} ({time.ctime(message.rotation_timestamp)})")
+                self.logger.info(f"  Final Rotation Time: {message.final_rotation_timestamp} ({time.ctime(message.final_rotation_timestamp)})")
                 self.logger.info(f"  Delay: {delay} seconds")
                 self.logger.info(f"  Delay: {delay/60:.1f} minutes")
             
             if delay <= 0:
-                self.logger.warning("Rotation timestamp is in the past, rotating immediately")
+                self.logger.warning("Final rotation timestamp is in the past, rotating immediately")
                 self._execute_key_rotation(message)
             else:
                 self.logger.info(f"Scheduling key rotation in {delay} seconds")

@@ -150,8 +150,8 @@ class MessageSigner:
             return "NOTIFY"
         elif message.message_type == MessageType.KEY_ACKNOWLEDGMENT:
             return "NOTIFY-ACK"
-        elif message.message_type == MessageType.ROTATION_CONFIRMATION:
-            return "ACK"
+        elif message.message_type == MessageType.SYNC_CONFIRMATION:
+            return "SYNC-CONFIRM"
         elif message.message_type == MessageType.ERROR:
             return "ERROR"
         else:
@@ -217,9 +217,9 @@ class MessageSigner:
             elif message_type == 'key_acknowledgment':
                 from ..models.sync_models import KeyAcknowledgmentMessage
                 message = KeyAcknowledgmentMessage(**message_data)
-            elif message_type == 'rotation_confirmation':
-                from ..models.sync_models import RotationConfirmationMessage
-                message = RotationConfirmationMessage(**message_data)
+            elif message_type == 'sync_confirmation':
+                from ..models.sync_models import SyncConfirmationMessage
+                message = SyncConfirmationMessage(**message_data)
             elif message_type == 'error':
                 from ..models.sync_models import ErrorMessage
                 message = ErrorMessage(**message_data)
@@ -441,26 +441,26 @@ class MessageSigner:
         
         return self.sign_message(message, slave_sae_id)
     
-    def create_rotation_confirmation(self, original_message_id: str,
-                                   rotation_timestamp: int,
-                                   master_sae_id: str, slave_sae_id: str) -> SignedMessage:
+    def create_sync_confirmation(self, original_message_id: str,
+                               final_rotation_timestamp: int,
+                               master_sae_id: str, slave_sae_id: str) -> SignedMessage:
         """
-        Create a signed rotation confirmation message.
+        Create a signed sync confirmation message.
         
         Args:
             original_message_id: ID of the original key notification
-            rotation_timestamp: Timestamp for key rotation
+            final_rotation_timestamp: Final agreed timestamp for key rotation
             master_sae_id: Master SAE ID
             slave_sae_id: Slave SAE ID
             
         Returns:
-            SignedMessage: The signed rotation confirmation message
+            SignedMessage: The signed sync confirmation message
         """
-        from ..models.sync_models import RotationConfirmationMessage
+        from ..models.sync_models import SyncConfirmationMessage
         
-        message = RotationConfirmationMessage(
+        message = SyncConfirmationMessage(
             original_message_id=original_message_id,
-            rotation_timestamp=rotation_timestamp,
+            final_rotation_timestamp=final_rotation_timestamp,
             master_sae_id=master_sae_id,
             slave_sae_id=slave_sae_id
         )

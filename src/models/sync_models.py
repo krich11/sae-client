@@ -14,7 +14,7 @@ class MessageType(str, Enum):
     """Types of synchronization messages."""
     KEY_NOTIFICATION = "key_notification"
     KEY_ACKNOWLEDGMENT = "key_acknowledgment"
-    ROTATION_CONFIRMATION = "rotation_confirmation"
+    SYNC_CONFIRMATION = "sync_confirmation"
     ERROR = "error"
 
 
@@ -86,7 +86,8 @@ class KeyAcknowledgmentMessage(BaseSyncMessage):
     message_type: MessageType = MessageType.KEY_ACKNOWLEDGMENT
     original_message_id: str = Field(..., description="ID of the original key notification message")
     selected_key_id: Optional[str] = Field(None, description="Optional key ID selected for use")
-    status: str = Field(default="ready", description="Status of key preparation")
+    status: str = Field(default="ready", description="Status of key preparation: 'ready' or 'need_more_time'")
+    suggested_rotation_timestamp: Optional[int] = Field(None, description="Optional suggested rotation timestamp if slave needs more time")
     
     @validator('original_message_id')
     def validate_original_message_id(cls, v):
@@ -96,13 +97,32 @@ class KeyAcknowledgmentMessage(BaseSyncMessage):
             return v
         except ValueError:
             raise ValueError('original_message_id must be a valid UUID')
+    
+    @validator('status')
+    def validate_status(cls, v):
+        """Validate status is valid."""
+        valid_statuses = ['ready', 'need_more_time']
+        if v not in valid_statuses:
+            raise ValueError(f'status must be one of: {valid_statuses}')
+        return v
+    
+    @validator('suggested_rotation_timestamp')
+    def validate_suggested_rotation_timestamp(cls, v, values):
+        """Validate suggested rotation timestamp if provided."""
+        if v is not None:
+            current_time = int(datetime.now().timestamp())
+            if v <= current_time:
+                raise ValueError('suggested_rotation_timestamp must be in the future')
+            if v > current_time + 3600:  # More than 1 hour in future
+                raise ValueError('suggested_rotation_timestamp is too far in future')
+        return v
 
 
-class RotationConfirmationMessage(BaseSyncMessage):
-    """Message sent by master SAE to confirm key rotation."""
-    message_type: MessageType = MessageType.ROTATION_CONFIRMATION
+class SyncConfirmationMessage(BaseSyncMessage):
+    """Message sent by master SAE to confirm synchronization and finalize rotation time."""
+    message_type: MessageType = MessageType.SYNC_CONFIRMATION
     original_message_id: str = Field(..., description="ID of the original key notification message")
-    rotation_timestamp: int = Field(..., description="Timestamp when keys should be rotated")
+    final_rotation_timestamp: int = Field(..., description="Final agreed timestamp when keys should be rotated")
     
     @validator('original_message_id')
     def validate_original_message_id(cls, v):
@@ -112,6 +132,16 @@ class RotationConfirmationMessage(BaseSyncMessage):
             return v
         except ValueError:
             raise ValueError('original_message_id must be a valid UUID')
+    
+    @validator('final_rotation_timestamp')
+    def validate_final_rotation_timestamp(cls, v):
+        """Validate final rotation timestamp is in the future."""
+        current_time = int(datetime.now().timestamp())
+        if v <= current_time:
+            raise ValueError('final_rotation_timestamp must be in the future')
+        if v > current_time + 3600:  # More than 1 hour in future
+            raise ValueError('final_rotation_timestamp is too far in future')
+        return v
 
 
 class ErrorMessage(BaseSyncMessage):
@@ -129,7 +159,7 @@ class SignedMessage(BaseModel):
     signature: str = Field(..., description="Base64-encoded RSA-SHA256 signature")
     sender_sae_id: str = Field(..., description="SAE ID of the message sender")
     public_key: str = Field(..., description="PEM-encoded public key of the sender")
-    type: str = Field(..., description="Message type: NOTIFY, NOTIFY-ACK, ACK")
+    type: str = Field(..., description="Message type: NOTIFY, NOTIFY-ACK, SYNC-CONFIRM")
     
     @validator('payload')
     def validate_payload(cls, v):
