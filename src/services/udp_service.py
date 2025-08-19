@@ -18,6 +18,7 @@ from ..models.sync_models import (
     MessageType, SyncConfig
 )
 from ..utils.message_signer import message_signer
+from .sync_state_machine import sync_state_machine, MessageType as StateMessageType
 
 
 class UDPService:
@@ -211,6 +212,35 @@ class UDPService:
                 self.logger.info(f"UDP MESSAGE ID: {message.message_id}")
                 self.logger.info(f"UDP MESSAGE TIMESTAMP: {message.timestamp}")
             
+            # State machine validation
+            session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
+            
+            # Map message type to state machine type
+            state_message_type = self._map_message_type(message.message_type)
+            
+            # Check if message can be accepted
+            can_accept, reason = sync_state_machine.can_accept_message(
+                state_message_type,
+                signed_message.sender_sae_id,
+                self.config.sae_id,
+                session_id
+            )
+            
+            if not can_accept:
+                self.logger.warning(f"State machine rejected message: {reason}")
+                if self.config.debug_mode:
+                    self._print_console_notification("STATE MACHINE REJECTION", {
+                        "From": signed_message.sender_sae_id,
+                        "Message Type": message.message_type,
+                        "Reason": reason,
+                        "Status": "✗ REJECTED"
+                    }, is_error=True)
+                return
+            
+            # Debug logging for state machine acceptance
+            if self.config.debug_mode:
+                self.logger.info(f"STATE MACHINE ACCEPTED: {reason}")
+            
             # Handle message based on type
             handler = self.message_handlers.get(message.message_type)
             if handler:
@@ -240,6 +270,24 @@ class UDPService:
                     "Error": str(e),
                     "Status": "✗ FAILED"
                 }, is_error=True)
+    
+    def _map_message_type(self, message_type: MessageType) -> StateMessageType:
+        """
+        Map sync model message type to state machine message type.
+        
+        Args:
+            message_type: Sync model message type
+            
+        Returns:
+            StateMessageType: State machine message type
+        """
+        mapping = {
+            MessageType.KEY_NOTIFICATION: StateMessageType.NOTIFY,
+            MessageType.KEY_ACKNOWLEDGMENT: StateMessageType.NOTIFY_ACK,
+            MessageType.ROTATION_CONFIRMATION: StateMessageType.ACK,
+            MessageType.ERROR: StateMessageType.ERROR
+        }
+        return mapping.get(message_type, StateMessageType.ERROR)
     
     def send_message(self, message: SignedMessage, host: str, port: int) -> bool:
         """
@@ -321,8 +369,17 @@ class UDPService:
                 "Address": f"{addr[0]}:{addr[1]}"
             })
         
-        # Create or update session
+        # Create session in state machine
         session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
+        sync_state_machine.create_session(
+            session_id=session_id,
+            master_sae_id=message.master_sae_id,
+            slave_sae_id=message.slave_sae_id,
+            key_ids=message.key_ids,
+            rotation_timestamp=message.rotation_timestamp
+        )
+        
+        # Also create legacy session for backward compatibility
         session = SyncSession(
             session_id=session_id,
             master_sae_id=message.master_sae_id,
@@ -388,8 +445,15 @@ class UDPService:
                 "Address": f"{addr[0]}:{addr[1]}"
             })
         
-        # Update session
+        # Update session in state machine
         session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
+        sync_state_machine.update_session_state(
+            session_id=session_id,
+            new_state=SyncState.ACKNOWLEDGED,
+            selected_key_id=message.selected_key_id
+        )
+        
+        # Also update legacy session for backward compatibility
         if session_id in self.sessions:
             session = self.sessions[session_id]
             session.state = SyncState.ACKNOWLEDGED
