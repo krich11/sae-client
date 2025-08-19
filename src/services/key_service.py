@@ -224,12 +224,13 @@ class KeyManagementService:
             self._mark_key_expired(key_id)
         return None
     
-    def get_available_keys(self, key_type: Optional[KeyType] = None) -> List[LocalKey]:
+    def get_available_keys(self, key_type: Optional[KeyType] = None, allowed_sae_id: Optional[str] = None) -> List[LocalKey]:
         """
-        Get all available keys, optionally filtered by type.
+        Get all available keys, optionally filtered by type and allowed SAE.
         
         Args:
             key_type: Optional key type filter
+            allowed_sae_id: Optional SAE ID filter (only return keys allowed for this SAE)
             
         Returns:
             List[LocalKey]: List of available keys
@@ -237,8 +238,11 @@ class KeyManagementService:
         available_keys = []
         for key in self.keys.values():
             if self._is_key_valid(key) and key.status == KeyStatus.AVAILABLE:
+                # Filter by key type
                 if key_type is None or key.key_type == key_type:
-                    available_keys.append(key)
+                    # Filter by allowed SAE ID
+                    if allowed_sae_id is None or key.allowed_sae_id == allowed_sae_id:
+                        available_keys.append(key)
         
         return available_keys
     

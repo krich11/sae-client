@@ -1383,23 +1383,26 @@ def handle_key_notify(args):
     slave_id = args[0]
     
     try:
-        # Get actual key data from local storage
+        # Get actual key data from local storage - filter by the specific slave
         from src.services.key_service import key_service
-        available_keys = key_service.get_available_keys()
+        available_keys = key_service.get_available_keys(allowed_sae_id=slave_id)
         
         if not available_keys:
-            console.print("[yellow]No keys available to notify about[/yellow]")
+            console.print(f"[yellow]No keys available for slave {slave_id}[/yellow]")
+            console.print(f"[yellow]Use 'key request encryption slave {slave_id}' to request keys for this slave first[/yellow]")
             return
         
-        # Use the first available key
+        # Use the first available key for this slave
         key = available_keys[0]
         
         # Debug logging for key notification
         if config_manager.config.debug_mode:
-            console.print(f"[blue]DEBUG:[/blue] Notifying slave {slave_id} about key {key.key_id}")
+            console.print(f"[blue]DEBUG:[/blue] Found {len(available_keys)} keys available for slave {slave_id}")
+            console.print(f"[blue]DEBUG:[/blue] Selected key {key.key_id} for notification")
             console.print(f"[blue]DEBUG:[/blue] Key type: {key.key_type}")
             console.print(f"[blue]DEBUG:[/blue] Key size: {key.key_size} bits")
             console.print(f"[blue]DEBUG:[/blue] Key material: {key.key_material[:50]}..." if len(key.key_material) > 50 else f"[blue]DEBUG:[/blue] Key material: {key.key_material}")
+            console.print(f"[blue]DEBUG:[/blue] Key allowed for SAE: {key.allowed_sae_id}")
         
         # Use UDP synchronization system for actual network communication
         from src.services.udp_service import udp_service
