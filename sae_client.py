@@ -112,6 +112,9 @@ def command_completer(text, state):
                 return None
     
     if state < len(options):
+        # Add space after first level commands for easier continuation
+        if len(words) == 1:
+            return options[state] + " "
         return options[state]
     return None
 
