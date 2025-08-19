@@ -61,6 +61,10 @@ class SAEConfig(BaseSettings):
     # SAE Peer Configuration
     known_saes_file: str = Field(default="./data/known_saes.json", description="File containing known SAE peer information")
     
+    # Storage Configuration
+    storage_backend: str = Field(default="sqlite", description="Storage backend: 'sqlite' or 'json'")
+    storage_path: str = Field(default="./data/sae_client.db", description="Storage path (database file or JSON file)")
+    
     class Config:
         env_file = ".env"
         env_prefix = "SAE_"

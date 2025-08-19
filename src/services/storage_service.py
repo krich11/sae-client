@@ -10,11 +10,10 @@ import shutil
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from pathlib import Path
-import sqlite3
-from contextlib import contextmanager
 
 from ..config import config_manager, logger
 from ..models.api_models import LocalKey
+from .storage_backend import StorageBackend, SQLiteBackend, JSONBackend
 
 
 class StorageService:
@@ -26,10 +25,23 @@ class StorageService:
         self.logger = logging.getLogger(__name__)
         self.data_dir = Path(self.config.data_dir)
         self.keys_file = Path(self.config.keys_file)
-        self.db_file = self.data_dir / "sae_client.db"
         
         self._ensure_directories()
-        self._init_database()
+        self._init_storage_backend()
+    
+    def _init_storage_backend(self):
+        """Initialize the appropriate storage backend."""
+        backend_type = self.config.storage_backend.lower()
+        storage_path = self.config.storage_path
+        
+        if backend_type == "json":
+            self.backend = JSONBackend(storage_path)
+            self.logger.info(f"Initialized JSON storage backend: {storage_path}")
+        elif backend_type == "sqlite":
+            self.backend = SQLiteBackend(storage_path)
+            self.logger.info(f"Initialized SQLite storage backend: {storage_path}")
+        else:
+            raise ValueError(f"Unsupported storage backend: {backend_type}")
     
     def _ensure_directories(self):
         """Ensure all required directories exist."""
@@ -46,56 +58,10 @@ class StorageService:
             self.logger.debug(f"Ensured directory exists: {directory}")
     
     def _init_database(self):
-        """Initialize SQLite database for key storage."""
-        try:
-            with self._get_db_connection() as conn:
-                cursor = conn.cursor()
-                
-                # Create keys table
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS keys (
-                        key_id TEXT PRIMARY KEY,
-                        key_type TEXT NOT NULL,
-                        key_material TEXT NOT NULL,
-                        key_size INTEGER NOT NULL,
-                        source TEXT NOT NULL,
-                        creation_time TEXT NOT NULL,
-                        expiry_time TEXT,
-                        status TEXT NOT NULL,
-                        metadata TEXT,
-                        created_at TEXT NOT NULL,
-                        updated_at TEXT NOT NULL
-                    )
-                """)
-                
-                # Create configuration table
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS configuration (
-                        key TEXT PRIMARY KEY,
-                        value TEXT NOT NULL,
-                        updated_at TEXT NOT NULL
-                    )
-                """)
-                
-                # Create audit log table
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS audit_log (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        timestamp TEXT NOT NULL,
-                        action TEXT NOT NULL,
-                        entity_type TEXT NOT NULL,
-                        entity_id TEXT,
-                        details TEXT,
-                        user_id TEXT
-                    )
-                """)
-                
-                conn.commit()
-                self.logger.info("Database initialized successfully")
-                
-        except Exception as e:
-            self.logger.error(f"Failed to initialize database: {e}")
-            raise
+        """Initialize SQLite database for key storage (legacy method)."""
+        # This method is kept for backward compatibility
+        # The actual initialization is now handled by the storage backend
+        pass
     
     @contextmanager
     def _get_db_connection(self):
@@ -123,36 +89,11 @@ class StorageService:
             bool: True if saved successfully
         """
         try:
-            with self._get_db_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    INSERT OR REPLACE INTO keys 
-                    (key_id, key_type, key_material, key_size, source, creation_time, 
-                     expiry_time, status, metadata, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    key.key_id,
-                    key.key_type.value,
-                    key.key_material,
-                    key.key_size,
-                    key.source,
-                    key.creation_time.isoformat(),
-                    key.expiry_time.isoformat() if key.expiry_time else None,
-                    key.status.value,
-                    json.dumps(key.metadata) if key.metadata else None,
-                    datetime.now().isoformat(),
-                    datetime.now().isoformat()
-                ))
-                
-                conn.commit()
-                
-                # Log audit entry
+            success = self.backend.save_key(key)
+            if success:
                 self._log_audit("SAVE", "KEY", key.key_id, f"Saved key {key.key_id}")
-                
-                self.logger.debug(f"Saved key {key.key_id} to database")
-                return True
-                
+                self.logger.debug(f"Saved key {key.key_id} to {self.config.storage_backend} storage")
+            return success
         except Exception as e:
             self.logger.error(f"Failed to save key {key.key_id}: {e}")
             return False
@@ -168,18 +109,7 @@ class StorageService:
             LocalKey: Key object if found, None otherwise
         """
         try:
-            with self._get_db_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT * FROM keys WHERE key_id = ?
-                """, (key_id,))
-                
-                row = cursor.fetchone()
-                if row:
-                    return self._row_to_key(row)
-                return None
-                
+            return self.backend.get_key(key_id)
         except Exception as e:
             self.logger.error(f"Failed to load key {key_id}: {e}")
             return None
@@ -191,21 +121,11 @@ class StorageService:
         Returns:
             Dict[str, LocalKey]: Dictionary of key_id to LocalKey objects
         """
-        keys = {}
         try:
-            with self._get_db_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("SELECT * FROM keys ORDER BY created_at DESC")
-                
-                for row in cursor.fetchall():
-                    key = self._row_to_key(row)
-                    if key:
-                        keys[key.key_id] = key
-                
-                self.logger.info(f"Loaded {len(keys)} keys from database")
-                return keys
-                
+            keys_list = self.backend.get_all_keys()
+            keys = {key.key_id: key for key in keys_list}
+            self.logger.info(f"Loaded {len(keys)} keys from {self.config.storage_backend} storage")
+            return keys
         except Exception as e:
             self.logger.error(f"Failed to load keys: {e}")
             return {}
@@ -241,20 +161,11 @@ class StorageService:
             bool: True if deleted successfully
         """
         try:
-            with self._get_db_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("DELETE FROM keys WHERE key_id = ?", (key_id,))
-                
-                if cursor.rowcount > 0:
-                    conn.commit()
-                    self._log_audit("DELETE", "KEY", key_id, f"Deleted key {key_id}")
-                    self.logger.info(f"Deleted key {key_id} from database")
-                    return True
-                else:
-                    self.logger.warning(f"Key {key_id} not found for deletion")
-                    return False
-                    
+            success = self.backend.delete_key(key_id)
+            if success:
+                self._log_audit("DELETE", "KEY", key_id, f"Deleted key {key_id}")
+                self.logger.info(f"Deleted key {key_id} from {self.config.storage_backend} storage")
+            return success
         except Exception as e:
             self.logger.error(f"Failed to delete key {key_id}: {e}")
             return False
@@ -498,26 +409,15 @@ class StorageService:
             bool: True if reset successfully
         """
         try:
-            self.logger.warning("Resetting key database - all keys will be deleted!")
+            self.logger.warning(f"Resetting {self.config.storage_backend} storage - all keys will be deleted!")
             
-            # Close any existing connections
-            if hasattr(self, '_db_connection') and self._db_connection:
-                self._db_connection.close()
-                self._db_connection = None
-            
-            # Delete the database file
-            if self.db_file.exists():
-                self.db_file.unlink()
-                self.logger.info(f"Deleted database file: {self.db_file}")
-            
-            # Reinitialize the database
-            self._init_database()
-            self.logger.info("Database reset completed successfully")
-            
-            return True
+            success = self.backend.reset_database()
+            if success:
+                self.logger.info(f"{self.config.storage_backend.capitalize()} storage reset completed successfully")
+            return success
             
         except Exception as e:
-            self.logger.error(f"Failed to reset database: {e}")
+            self.logger.error(f"Failed to reset {self.config.storage_backend} storage: {e}")
             return False
 
     def get_storage_statistics(self) -> Dict[str, Any]:
