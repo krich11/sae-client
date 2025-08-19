@@ -848,7 +848,9 @@ def interactive():
     
     while True:
         try:
-            command_line = input(f"{config.sae_id}> ")
+            # Add debug indicator to prompt if debug mode is enabled
+            debug_indicator = " (debug)" if config.debug_mode else ""
+            command_line = input(f"{config.sae_id}{debug_indicator}> ")
             
             # Skip empty commands (just carriage return)
             if not command_line.strip():
