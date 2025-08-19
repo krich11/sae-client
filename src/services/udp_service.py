@@ -885,9 +885,34 @@ class UDPService:
             persona = self._load_persona_plugin(persona_name)
             
             if persona:
-                # Execute rotation
-                persona.rotate_key(message.original_message_id, message.rotation_timestamp)
-                self.logger.info(f"Executed key rotation using {persona_name} persona")
+                # Create rotation context with flexible parameters
+                from src.personas.base_persona import RotationContext
+                
+                context = RotationContext(
+                    key_id=message.original_message_id,
+                    rotation_timestamp=message.rotation_timestamp,
+                    device_interface=self.sync_config.get('device_interface'),
+                    encryption_algorithm=self.sync_config.get('encryption_algorithm', 'AES-256'),
+                    key_priority=self.sync_config.get('key_priority', 'normal'),
+                    rollback_on_failure=self.sync_config.get('rollback_on_failure', True),
+                    notification_url=self.sync_config.get('notification_url'),
+                    notification_headers=self.sync_config.get('notification_headers', {}),
+                    session_id=f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}",
+                    master_sae_id=message.master_sae_id,
+                    slave_sae_id=message.slave_sae_id,
+                    custom_metadata=self.sync_config.get('custom_metadata', {}),
+                    advance_warning_seconds=self.sync_config.get('advance_warning_seconds', 30),
+                    cleanup_delay_seconds=self.sync_config.get('cleanup_delay_seconds', 60),
+                    validate_key_before_rotation=self.sync_config.get('validate_key_before_rotation', True),
+                    validate_device_after_rotation=self.sync_config.get('validate_device_after_rotation', True)
+                )
+                
+                # Execute rotation with context
+                success = persona.rotate_key(context)
+                if success:
+                    self.logger.info(f"Executed key rotation using {persona_name} persona")
+                else:
+                    self.logger.error(f"Key rotation failed using {persona_name} persona")
             else:
                 self.logger.warning(f"No persona plugin found for: {persona_name}")
                 

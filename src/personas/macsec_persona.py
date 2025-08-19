@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
 
-from .base_persona import BasePersona
+from .base_persona import BasePersona, PreConfigureContext, RotationContext
 
 
 class MacsecPersona(BasePersona):
@@ -40,73 +40,72 @@ class MacsecPersona(BasePersona):
             except Exception as e:
                 self.logger.warning(f"Could not verify interface {interface}: {e}")
     
-    def pre_configure_key(self, key_id: str, key_material: str) -> bool:
+    def pre_configure_key(self, context: PreConfigureContext) -> bool:
         """
         Pre-configure a key in the MACsec device.
         
         Args:
-            key_id: Unique identifier for the key
-            key_material: Base64-encoded key material
+            context: PreConfigureContext containing key and device parameters
             
         Returns:
             bool: True if key was successfully pre-configured
         """
         try:
-            # Debug logging for MACsec pre-configure
+            # Debug logging for MACsec key pre-configuration
             if self.config.get('debug_mode', False):
                 self.logger.info(f"MACSEC PRE-CONFIGURE KEY:")
-                self.logger.info(f"  Interface: {self.config.get('interface')}")
-                self.logger.info(f"  Key ID: {key_id}")
-                self.logger.info(f"  Algorithm: {self.config.get('key_algorithm', 'aes-gcm-256')}")
-                self.logger.info(f"  Key Material Size: {len(key_material)} bytes")
-                self.logger.info(f"  Key Material (first 32 chars): {key_material[:32]}...")
+                self.logger.info(f"  Interface: {context.device_interface or self.config.get('interface')}")
+                self.logger.info(f"  Key ID: {context.key_id}")
+                self.logger.info(f"  Key Material Size: {len(context.key_material)} bytes")
+                self.logger.info(f"  Encryption Algorithm: {context.encryption_algorithm}")
+                self.logger.info(f"  Key Priority: {context.key_priority}")
+                if context.custom_metadata:
+                    self.logger.info(f"  Custom Metadata: {context.custom_metadata}")
             
-            # Validate key material
-            if not self.validate_key_material(key_material):
-                self.log_operation('pre_configure', key_id, 'failed', 'Invalid key material')
-                return False
+            interface = context.device_interface or self.config.get('interface')
             
-            interface = self.config.get('interface')
-            key_algorithm = self.config.get('key_algorithm', 'aes-gcm-256')
-            
-            # Example MACsec key configuration command
-            # This would be specific to your MACsec implementation
+            # Example MACsec key pre-configuration command
             cmd = [
-                'macsec', 'set-key',
+                'macsec', 'pre-configure-key',
                 '--interface', interface,
-                '--key-id', key_id,
-                '--key-material', key_material,
-                '--algorithm', key_algorithm
+                '--key-id', context.key_id,
+                '--key-material', context.key_material,
+                '--algorithm', context.encryption_algorithm,
+                '--priority', context.key_priority
             ]
+            
+            # Add custom metadata if provided
+            if context.custom_metadata:
+                for key, value in context.custom_metadata.items():
+                    cmd.extend(['--metadata', f"{key}={value}"])
             
             # Debug logging for command
             if self.config.get('debug_mode', False):
-                self.logger.info(f"MACSEC COMMAND:")
+                self.logger.info(f"MACSEC PRE-CONFIGURE COMMAND:")
                 self.logger.info(f"  Command: {' '.join(cmd)}")
             
             # Execute command (commented out for safety)
             # result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             # if result.returncode != 0:
-            #     self.log_operation('pre_configure', key_id, 'failed', result.stderr)
+            #     self.log_operation('pre-configure', context.key_id, 'failed', result.stderr)
             #     return False
             
             # For demo purposes, simulate success
-            self.logger.info(f"Pre-configured key {key_id} on interface {interface}")
-            self.log_operation('pre_configure', key_id, 'success', f'Interface: {interface}')
+            self.logger.info(f"Pre-configured key {context.key_id} on interface {interface}")
+            self.log_operation('pre-configure', context.key_id, 'success', f'Interface: {interface}')
             return True
             
         except Exception as e:
-            self.log_operation('pre_configure', key_id, 'failed', str(e))
-            self.logger.error(f"Failed to pre-configure key {key_id}: {e}")
+            self.log_operation('pre-configure', context.key_id, 'failed', str(e))
+            self.logger.error(f"Failed to pre-configure key {context.key_id}: {e}")
             return False
     
-    def rotate_key(self, key_id: str, rotation_timestamp: int) -> bool:
+    def rotate_key(self, context: RotationContext) -> bool:
         """
         Rotate to the specified key at the given timestamp.
         
         Args:
-            key_id: Unique identifier for the key to rotate to
-            rotation_timestamp: Unix timestamp when rotation should occur
+            context: RotationContext containing all rotation parameters
             
         Returns:
             bool: True if key rotation was successful
@@ -116,21 +115,45 @@ class MacsecPersona(BasePersona):
             if self.config.get('debug_mode', False):
                 import time
                 self.logger.info(f"MACSEC ROTATE KEY:")
-                self.logger.info(f"  Interface: {self.config.get('interface')}")
-                self.logger.info(f"  Key ID: {key_id}")
-                self.logger.info(f"  Rotation Timestamp: {rotation_timestamp}")
-                self.logger.info(f"  Rotation Time: {time.ctime(rotation_timestamp)}")
+                self.logger.info(f"  Interface: {context.device_interface or self.config.get('interface')}")
+                self.logger.info(f"  Key ID: {context.key_id}")
+                self.logger.info(f"  Rotation Timestamp: {context.rotation_timestamp}")
+                self.logger.info(f"  Rotation Time: {time.ctime(context.rotation_timestamp)}")
                 self.logger.info(f"  Current Time: {time.ctime()}")
+                self.logger.info(f"  Encryption Algorithm: {context.encryption_algorithm}")
+                self.logger.info(f"  Key Priority: {context.key_priority}")
+                self.logger.info(f"  Rollback on Failure: {context.rollback_on_failure}")
+                self.logger.info(f"  Session ID: {context.session_id}")
+                if context.custom_metadata:
+                    self.logger.info(f"  Custom Metadata: {context.custom_metadata}")
             
-            interface = self.config.get('interface')
+            interface = context.device_interface or self.config.get('interface')
             
             # Example MACsec key rotation command
             cmd = [
                 'macsec', 'rotate-key',
                 '--interface', interface,
-                '--key-id', key_id,
-                '--timestamp', str(rotation_timestamp)
+                '--key-id', context.key_id,
+                '--timestamp', str(context.rotation_timestamp),
+                '--algorithm', context.encryption_algorithm,
+                '--priority', context.key_priority
             ]
+            
+            # Add rollback option
+            if context.rollback_on_failure:
+                cmd.append('--rollback-on-failure')
+            
+            # Add custom metadata if provided
+            if context.custom_metadata:
+                for key, value in context.custom_metadata.items():
+                    cmd.extend(['--metadata', f"{key}={value}"])
+            
+            # Add notification URL if provided
+            if context.notification_url:
+                cmd.extend(['--notification-url', context.notification_url])
+                if context.notification_headers:
+                    for header, value in context.notification_headers.items():
+                        cmd.extend(['--notification-header', f"{header}={value}"])
             
             # Debug logging for command
             if self.config.get('debug_mode', False):
@@ -140,17 +163,17 @@ class MacsecPersona(BasePersona):
             # Execute command (commented out for safety)
             # result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             # if result.returncode != 0:
-            #     self.log_operation('rotate', key_id, 'failed', result.stderr)
+            #     self.log_operation('rotate', context.key_id, 'failed', result.stderr)
             #     return False
             
             # For demo purposes, simulate success
-            self.logger.info(f"Rotated to key {key_id} on interface {interface}")
-            self.log_operation('rotate', key_id, 'success', f'Interface: {interface}')
+            self.logger.info(f"Rotated to key {context.key_id} on interface {interface}")
+            self.log_operation('rotate', context.key_id, 'success', f'Interface: {interface}')
             return True
             
         except Exception as e:
-            self.log_operation('rotate', key_id, 'failed', str(e))
-            self.logger.error(f"Failed to rotate to key {key_id}: {e}")
+            self.log_operation('rotate', context.key_id, 'failed', str(e))
+            self.logger.error(f"Failed to rotate to key {context.key_id}: {e}")
             return False
     
     def cleanup_old_keys(self) -> bool:

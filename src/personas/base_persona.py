@@ -8,6 +8,45 @@ from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
 from datetime import datetime
 from pathlib import Path
+from dataclasses import dataclass, field
+
+
+@dataclass
+class RotationContext:
+    """Context for key rotation operations with flexible parameters."""
+    key_id: str
+    rotation_timestamp: int
+    # Device-specific parameters
+    device_interface: Optional[str] = None
+    encryption_algorithm: str = "AES-256"
+    key_priority: str = "normal"
+    rollback_on_failure: bool = True
+    # Notification parameters
+    notification_url: Optional[str] = None
+    notification_headers: Dict[str, str] = field(default_factory=dict)
+    # Session information
+    session_id: Optional[str] = None
+    master_sae_id: Optional[str] = None
+    slave_sae_id: Optional[str] = None
+    # Custom metadata
+    custom_metadata: Dict[str, Any] = field(default_factory=dict)
+    # Timing parameters
+    advance_warning_seconds: int = 30
+    cleanup_delay_seconds: int = 60
+    # Validation parameters
+    validate_key_before_rotation: bool = True
+    validate_device_after_rotation: bool = True
+
+
+@dataclass
+class PreConfigureContext:
+    """Context for key pre-configuration operations."""
+    key_id: str
+    key_material: str
+    device_interface: Optional[str] = None
+    encryption_algorithm: str = "AES-256"
+    key_priority: str = "normal"
+    custom_metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 class BasePersona(ABC):
@@ -31,13 +70,12 @@ class BasePersona(ABC):
         pass
     
     @abstractmethod
-    def pre_configure_key(self, key_id: str, key_material: str) -> bool:
+    def pre_configure_key(self, context: PreConfigureContext) -> bool:
         """
         Pre-configure a key in the device.
         
         Args:
-            key_id: Unique identifier for the key
-            key_material: Base64-encoded key material
+            context: PreConfigureContext containing key and device parameters
             
         Returns:
             bool: True if key was successfully pre-configured
@@ -46,20 +84,24 @@ class BasePersona(ABC):
         if hasattr(self, 'config') and self.config.get('debug_mode', False):
             self.logger.info(f"PERSONA PRE-CONFIGURE KEY:")
             self.logger.info(f"  Persona: {self.__class__.__name__}")
-            self.logger.info(f"  Key ID: {key_id}")
-            self.logger.info(f"  Key Material Size: {len(key_material)} bytes")
-            self.logger.info(f"  Key Material (first 32 chars): {key_material[:32]}...")
+            self.logger.info(f"  Key ID: {context.key_id}")
+            self.logger.info(f"  Key Material Size: {len(context.key_material)} bytes")
+            self.logger.info(f"  Key Material (first 32 chars): {context.key_material[:32]}...")
+            self.logger.info(f"  Device Interface: {context.device_interface}")
+            self.logger.info(f"  Encryption Algorithm: {context.encryption_algorithm}")
+            self.logger.info(f"  Key Priority: {context.key_priority}")
+            if context.custom_metadata:
+                self.logger.info(f"  Custom Metadata: {context.custom_metadata}")
         
         pass
     
     @abstractmethod
-    def rotate_key(self, key_id: str, rotation_timestamp: int) -> bool:
+    def rotate_key(self, context: RotationContext) -> bool:
         """
         Rotate to the specified key at the given timestamp.
         
         Args:
-            key_id: Unique identifier for the key to rotate to
-            rotation_timestamp: Unix timestamp when rotation should occur
+            context: RotationContext containing all rotation parameters
             
         Returns:
             bool: True if key rotation was successful
@@ -69,10 +111,19 @@ class BasePersona(ABC):
             import time
             self.logger.info(f"PERSONA ROTATE KEY:")
             self.logger.info(f"  Persona: {self.__class__.__name__}")
-            self.logger.info(f"  Key ID: {key_id}")
-            self.logger.info(f"  Rotation Timestamp: {rotation_timestamp}")
-            self.logger.info(f"  Rotation Time: {time.ctime(rotation_timestamp)}")
+            self.logger.info(f"  Key ID: {context.key_id}")
+            self.logger.info(f"  Rotation Timestamp: {context.rotation_timestamp}")
+            self.logger.info(f"  Rotation Time: {time.ctime(context.rotation_timestamp)}")
             self.logger.info(f"  Current Time: {time.ctime()}")
+            self.logger.info(f"  Device Interface: {context.device_interface}")
+            self.logger.info(f"  Encryption Algorithm: {context.encryption_algorithm}")
+            self.logger.info(f"  Key Priority: {context.key_priority}")
+            self.logger.info(f"  Rollback on Failure: {context.rollback_on_failure}")
+            self.logger.info(f"  Session ID: {context.session_id}")
+            self.logger.info(f"  Master SAE: {context.master_sae_id}")
+            self.logger.info(f"  Slave SAE: {context.slave_sae_id}")
+            if context.custom_metadata:
+                self.logger.info(f"  Custom Metadata: {context.custom_metadata}")
         
         pass
     
