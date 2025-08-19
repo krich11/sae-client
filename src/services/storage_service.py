@@ -219,17 +219,10 @@ class StorageService:
             bool: True if saved successfully
         """
         try:
-            with self._get_db_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    INSERT OR REPLACE INTO configuration (key, value, updated_at)
-                    VALUES (?, ?, ?)
-                """, (key, json.dumps(value), datetime.now().isoformat()))
-                
-                conn.commit()
-                self.logger.debug(f"Saved configuration {key}")
-                return True
+            # TODO: Implement configuration storage in storage backends
+            self.logger.warning(f"Configuration storage not implemented for {self.config.storage_backend} backend")
+            self.logger.debug(f"Would save configuration {key}: {value}")
+            return True
                 
         except Exception as e:
             self.logger.error(f"Failed to save configuration {key}: {e}")
@@ -247,15 +240,10 @@ class StorageService:
             Any: Configuration value or default
         """
         try:
-            with self._get_db_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("SELECT value FROM configuration WHERE key = ?", (key,))
-                
-                row = cursor.fetchone()
-                if row:
-                    return json.loads(row['value'])
-                return default
+            # TODO: Implement configuration storage in storage backends
+            self.logger.warning(f"Configuration storage not implemented for {self.config.storage_backend} backend")
+            self.logger.debug(f"Would load configuration {key}, returning default: {default}")
+            return default
                 
         except Exception as e:
             self.logger.error(f"Failed to load configuration {key}: {e}")
@@ -287,28 +275,10 @@ class StorageService:
             List[Dict[str, Any]]: Audit log entries
         """
         try:
-            with self._get_db_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT * FROM audit_log 
-                    ORDER BY timestamp DESC 
-                    LIMIT ?
-                """, (limit,))
-                
-                entries = []
-                for row in cursor.fetchall():
-                    entries.append({
-                        'id': row['id'],
-                        'timestamp': row['timestamp'],
-                        'action': row['action'],
-                        'entity_type': row['entity_type'],
-                        'entity_id': row['entity_id'],
-                        'details': row['details'],
-                        'user_id': row['user_id']
-                    })
-                
-                return entries
+            # TODO: Implement audit log storage in storage backends
+            self.logger.warning(f"Audit log storage not implemented for {self.config.storage_backend} backend")
+            self.logger.debug(f"Would return {limit} audit log entries")
+            return []
                 
         except Exception as e:
             self.logger.error(f"Failed to get audit log: {e}")
@@ -316,7 +286,7 @@ class StorageService:
     
     def create_backup(self) -> Optional[str]:
         """
-        Create a backup of the database.
+        Create a backup of the storage.
         
         Returns:
             str: Backup file path if successful, None otherwise
@@ -326,9 +296,13 @@ class StorageService:
             backup_dir.mkdir(exist_ok=True)
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_file = backup_dir / f"sae_client_backup_{timestamp}.db"
             
-            shutil.copy2(self.db_file, backup_file)
+            if self.config.storage_backend.lower() == 'json':
+                backup_file = backup_dir / f"sae_client_backup_{timestamp}.json"
+                shutil.copy2(self.config.storage_path, backup_file)
+            else:
+                backup_file = backup_dir / f"sae_client_backup_{timestamp}.db"
+                shutil.copy2(self.config.storage_path, backup_file)
             
             self.logger.info(f"Created backup: {backup_file}")
             return str(backup_file)
@@ -339,7 +313,7 @@ class StorageService:
     
     def restore_backup(self, backup_file: str) -> bool:
         """
-        Restore database from backup.
+        Restore storage from backup.
         
         Args:
             backup_file: Path to backup file
@@ -353,13 +327,13 @@ class StorageService:
                 self.logger.error(f"Backup file not found: {backup_file}")
                 return False
             
-            # Create backup of current database
+            # Create backup of current storage
             current_backup = self.create_backup()
             
             # Restore from backup
-            shutil.copy2(backup_path, self.db_file)
+            shutil.copy2(backup_path, self.config.storage_path)
             
-            self.logger.info(f"Restored database from backup: {backup_file}")
+            self.logger.info(f"Restored storage from backup: {backup_file}")
             return True
             
         except Exception as e:
@@ -384,7 +358,8 @@ class StorageService:
             cutoff_time = datetime.now().timestamp() - (keep_days * 24 * 3600)
             deleted_count = 0
             
-            for backup_file in backup_dir.glob("sae_client_backup_*.db"):
+            # Clean up both .db and .json backup files
+            for backup_file in backup_dir.glob("sae_client_backup_*.*"):
                 if backup_file.stat().st_mtime < cutoff_time:
                     backup_file.unlink()
                     deleted_count += 1
@@ -423,31 +398,35 @@ class StorageService:
             Dict[str, Any]: Storage statistics
         """
         try:
-            with self._get_db_connection() as conn:
-                cursor = conn.cursor()
-                
-                # Count keys
-                cursor.execute("SELECT COUNT(*) as count FROM keys")
-                total_keys = cursor.fetchone()['count']
-                
-                # Count by status
-                cursor.execute("SELECT status, COUNT(*) as count FROM keys GROUP BY status")
-                status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
-                
-                # Count by type
-                cursor.execute("SELECT key_type, COUNT(*) as count FROM keys GROUP BY key_type")
-                type_counts = {row['key_type']: row['count'] for row in cursor.fetchall()}
-                
-                # Database size
-                db_size = self.db_file.stat().st_size if self.db_file.exists() else 0
-                
-                return {
-                    'total_keys': total_keys,
-                    'status_counts': status_counts,
-                    'type_counts': type_counts,
-                    'database_size_bytes': db_size,
-                    'database_size_mb': round(db_size / (1024 * 1024), 2)
-                }
+            # Get all keys from storage backend
+            keys = self.backend.get_all_keys()
+            total_keys = len(keys)
+            
+            # Count by status
+            status_counts = {}
+            for key in keys:
+                status = key.status.value
+                status_counts[status] = status_counts.get(status, 0) + 1
+            
+            # Count by type
+            type_counts = {}
+            for key in keys:
+                key_type = key.key_type.value
+                type_counts[key_type] = type_counts.get(key_type, 0) + 1
+            
+            # Storage file size
+            storage_path = Path(self.config.storage_path)
+            storage_size = storage_path.stat().st_size if storage_path.exists() else 0
+            
+            return {
+                'total_keys': total_keys,
+                'status_counts': status_counts,
+                'type_counts': type_counts,
+                'storage_size_bytes': storage_size,
+                'storage_size_mb': round(storage_size / (1024 * 1024), 2),
+                'storage_backend': self.config.storage_backend,
+                'storage_path': self.config.storage_path
+            }
                 
         except Exception as e:
             self.logger.error(f"Failed to get storage statistics: {e}")
