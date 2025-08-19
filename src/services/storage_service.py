@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import shutil
+import sqlite3
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from pathlib import Path

@@ -196,7 +196,17 @@ class JSONBackend(StorageBackend):
         """Load data from JSON file."""
         try:
             if self.file_path.exists():
-                return json.loads(self.file_path.read_text())
+                content = self.file_path.read_text(encoding='utf-8')
+                return json.loads(content)
+            return {"keys": {}}
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            self.logger.error(f"Failed to load JSON data: {e}")
+            self.logger.warning("Creating new JSON file due to corruption")
+            # Backup corrupted file and create new one
+            if self.file_path.exists():
+                backup_path = self.file_path.with_suffix('.json.bak')
+                self.file_path.rename(backup_path)
+                self.logger.info(f"Backed up corrupted file to {backup_path}")
             return {"keys": {}}
         except Exception as e:
             self.logger.error(f"Failed to load JSON data: {e}")
