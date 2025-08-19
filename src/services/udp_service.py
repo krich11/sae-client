@@ -353,6 +353,19 @@ class UDPService:
             self.logger.info(f"  Rotation Timestamp: {message.rotation_timestamp}")
             self.logger.info(f"  Rotation Time: {time.ctime(message.rotation_timestamp)}")
         
+        # Calculate time until key roll
+        current_time = time.time()
+        time_until_roll = message.rotation_timestamp - current_time
+        
+        if time_until_roll > 0:
+            hours = int(time_until_roll // 3600)
+            minutes = int((time_until_roll % 3600) // 60)
+            seconds = int(time_until_roll % 60)
+            time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+            self.logger.info(f"Proposed time for key roll is in {time_str} at {time.ctime(message.rotation_timestamp)}")
+        else:
+            self.logger.warning(f"Key roll time has already passed! Rotation was scheduled for {time.ctime(message.rotation_timestamp)}")
+        
         self.logger.info(f"Received key notification from {message.master_sae_id}")
         self.logger.info(f"Available keys: {message.key_ids}")
         self.logger.info(f"Rotation timestamp: {message.rotation_timestamp}")

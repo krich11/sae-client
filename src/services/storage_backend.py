@@ -57,22 +57,40 @@ class SQLiteBackend(StorageBackend):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS keys (
-                        key_id TEXT PRIMARY KEY,
-                        key_type TEXT NOT NULL,
-                        key_material TEXT NOT NULL,
-                        key_size INTEGER NOT NULL,
-                        source TEXT NOT NULL,
-                        creation_time TEXT NOT NULL,
-                        expiry_time TEXT,
-                        status TEXT NOT NULL,
-                        allowed_sae_id TEXT,
-                        metadata TEXT,
-                        created_at TEXT NOT NULL,
-                        updated_at TEXT NOT NULL
-                    )
-                """)
+                
+                # Check if table exists
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='keys'")
+                table_exists = cursor.fetchone() is not None
+                
+                if not table_exists:
+                    # Create new table with full schema
+                    cursor.execute("""
+                        CREATE TABLE keys (
+                            key_id TEXT PRIMARY KEY,
+                            key_type TEXT NOT NULL,
+                            key_material TEXT NOT NULL,
+                            key_size INTEGER NOT NULL,
+                            source TEXT NOT NULL,
+                            creation_time TEXT NOT NULL,
+                            expiry_time TEXT,
+                            status TEXT NOT NULL,
+                            allowed_sae_id TEXT,
+                            metadata TEXT,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NOT NULL
+                        )
+                    """)
+                    self.logger.info("Created new keys table with full schema")
+                else:
+                    # Check if allowed_sae_id column exists
+                    cursor.execute("PRAGMA table_info(keys)")
+                    columns = [col[1] for col in cursor.fetchall()]
+                    
+                    if 'allowed_sae_id' not in columns:
+                        # Add the missing column
+                        cursor.execute("ALTER TABLE keys ADD COLUMN allowed_sae_id TEXT")
+                        self.logger.info("Added missing allowed_sae_id column to existing keys table")
+                
                 conn.commit()
         except Exception as e:
             self.logger.error(f"Failed to initialize SQLite database: {e}")
