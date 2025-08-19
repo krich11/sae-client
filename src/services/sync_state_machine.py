@@ -146,7 +146,7 @@ class SyncStateMachine:
                 return False, f"Invalid message {message_type.value} in {current_state.value} state"
         
         elif current_state == SyncState.ACKNOWLEDGED:
-            if message_type == MessageType.SYNC_CONFIRMATION and is_slave:
+            if message_type == MessageType.ACK and is_slave:
                 return True, "Slave accepting sync confirmation"
             elif message_type == MessageType.NOTIFY and is_slave:
                 return True, "Slave accepting new notification"
