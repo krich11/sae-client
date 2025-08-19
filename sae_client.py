@@ -1541,6 +1541,33 @@ def handle_key_notify(args):
         success = udp_service.send_message(signed_message, slave_host, slave_port)
         
         if success:
+            # Create session in state machine for tracking acknowledgment
+            from src.services.sync_state_machine import sync_state_machine
+            
+            # Extract message ID from the signed message
+            import base64
+            import json
+            payload_data = json.loads(base64.b64decode(signed_message.payload))
+            message_id = payload_data['message_id']
+            
+            # Create session ID
+            session_id = f"{config.sae_id}_{slave_id}_{message_id}"
+            
+            # Debug logging for session creation
+            if config_manager.config.debug_mode:
+                console.print(f"[blue]DEBUG:[/blue] Creating master session for tracking")
+                console.print(f"[blue]DEBUG:[/blue] Session ID: {session_id}")
+                console.print(f"[blue]DEBUG:[/blue] Message ID: {message_id}")
+            
+            # Create session in state machine
+            sync_state_machine.create_session(
+                session_id=session_id,
+                master_sae_id=config.sae_id,
+                slave_sae_id=slave_id,
+                key_ids=[key.key_id],
+                rotation_timestamp=rotation_timestamp
+            )
+            
             console.print(f"[green]✓[/green] Successfully notified slave {slave_id}")
             console.print(f"[green]✓[/green] Key ID: {key.key_id}")
             console.print(f"[green]✓[/green] Rotation timestamp: {rotation_timestamp}")
@@ -1551,6 +1578,7 @@ def handle_key_notify(args):
             if config_manager.config.debug_mode:
                 console.print(f"[blue]DEBUG:[/blue] UDP message sent successfully")
                 console.print(f"[blue]DEBUG:[/blue] Key notification sent - slave will respond with acknowledgment")
+                console.print(f"[blue]DEBUG:[/blue] Master session created - waiting for acknowledgment")
         else:
             console.print(f"[red]✗[/red] Failed to notify slave {slave_id}")
             console.print(f"[red]✗[/red] UDP send failed to {slave_host}:{slave_port}")
