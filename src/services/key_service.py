@@ -236,13 +236,44 @@ class KeyManagementService:
             List[LocalKey]: List of available keys
         """
         available_keys = []
+        
+        # Debug logging for key filtering
+        if self.config.debug_mode:
+            self.logger.info(f"KEY FILTERING DEBUG:")
+            self.logger.info(f"  Requested key_type: {key_type}")
+            self.logger.info(f"  Requested allowed_sae_id: {allowed_sae_id}")
+            self.logger.info(f"  Total keys in storage: {len(self.keys)}")
+        
         for key in self.keys.values():
+            # Debug logging for each key
+            if self.config.debug_mode:
+                self.logger.info(f"KEY FILTERING CHECK:")
+                self.logger.info(f"  Key ID: {key.key_id}")
+                self.logger.info(f"  Key Status: {key.status}")
+                self.logger.info(f"  Key Type: {key.key_type}")
+                self.logger.info(f"  Key Allowed SAE: {key.allowed_sae_id}")
+                self.logger.info(f"  Is Valid: {self._is_key_valid(key)}")
+            
             if self._is_key_valid(key) and key.status == KeyStatus.AVAILABLE:
                 # Filter by key type
                 if key_type is None or key.key_type == key_type:
                     # Filter by allowed SAE ID
                     if allowed_sae_id is None or key.allowed_sae_id == allowed_sae_id:
                         available_keys.append(key)
+                        if self.config.debug_mode:
+                            self.logger.info(f"  ✓ KEY ACCEPTED: {key.key_id}")
+                    else:
+                        if self.config.debug_mode:
+                            self.logger.info(f"  ✗ KEY REJECTED (SAE mismatch): {key.key_id} (expected: {allowed_sae_id}, got: {key.allowed_sae_id})")
+                else:
+                    if self.config.debug_mode:
+                        self.logger.info(f"  ✗ KEY REJECTED (type mismatch): {key.key_id} (expected: {key_type}, got: {key.key_type})")
+            else:
+                if self.config.debug_mode:
+                    self.logger.info(f"  ✗ KEY REJECTED (invalid/not available): {key.key_id}")
+        
+        if self.config.debug_mode:
+            self.logger.info(f"KEY FILTERING RESULT: {len(available_keys)} keys found")
         
         return available_keys
     
