@@ -254,7 +254,7 @@ class PersonaManager:
     def _load_persona_configs(self):
         """Load persona configurations from config files."""
         try:
-            config_dir = Path("personas/config")
+            config_dir = Path("src/personas/config")
             if config_dir.exists():
                 for config_file in config_dir.glob("*.json"):
                     persona_name = config_file.stem

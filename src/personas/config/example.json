@@ -1,0 +1,28 @@
+{
+    "device_name": "example-device-001",
+    "simulation_mode": true,
+    "operation_delay": 1.0,
+    "default_interface": "eth0",
+    "default_algorithm": "AES-256",
+    "default_priority": "normal",
+    "rollback_on_failure": true,
+    "advance_warning_seconds": 30,
+    "cleanup_delay_seconds": 60,
+    "validate_key_before_rotation": true,
+    "validate_device_after_rotation": true,
+    "notification_url": "https://webhook.example.com/status",
+    "notification_headers": {
+        "Authorization": "Bearer your-token-here",
+        "Content-Type": "application/json"
+    },
+    "custom_metadata": {
+        "environment": "development",
+        "team": "security",
+        "project": "sae-client"
+    },
+    "supported_algorithms": ["AES-256", "ChaCha20", "AES-128"],
+    "supported_interfaces": ["eth0", "eth1", "bond0"],
+    "max_key_slots": 10,
+    "key_lifetime_hours": 24,
+    "debug_mode": true
+}
