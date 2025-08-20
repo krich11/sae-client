@@ -25,6 +25,12 @@ class DefaultPersona(BasePersona):
         self.logger.info("Default Persona Initialized")
         self.logger.info("This persona only handles message exchange - no device operations will be performed")
     
+    def _validate_config(self):
+        """Validate default persona configuration."""
+        # Default persona doesn't require any specific configuration validation
+        # since it doesn't perform actual device operations
+        self.logger.info("Default persona: Configuration validation completed (no validation required)")
+    
     def test_connection(self) -> bool:
         """
         Test connection (always succeeds for default persona).
