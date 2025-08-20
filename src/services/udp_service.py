@@ -957,9 +957,26 @@ class UDPService:
     def _load_persona_plugin(self, persona_name: str):
         """Load persona plugin."""
         try:
-            # This will be implemented when we create the persona system
-            # For now, return None
-            return None
+            from src.personas.base_persona import persona_manager
+            
+            # Use the configured persona from the main config instead of sync_config
+            from src.config import config_manager
+            configured_persona_name = config_manager.config.device_persona
+            if configured_persona_name == "default":
+                configured_persona_name = "aos8"  # Default to aos8 if not specified
+            
+            # Load the configured persona
+            persona = persona_manager.get_persona(configured_persona_name)
+            if not persona:
+                persona = persona_manager.load_persona(configured_persona_name)
+            
+            if persona:
+                self.logger.info(f"Loaded persona plugin: {configured_persona_name}")
+                return persona
+            else:
+                self.logger.warning(f"Could not load persona plugin: {configured_persona_name}")
+                return None
+                
         except Exception as e:
             self.logger.error(f"Error loading persona plugin {persona_name}: {e}")
             return None
