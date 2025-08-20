@@ -412,6 +412,63 @@ def health():
             
             console.print(config_table)
             
+            # Print all environment variables
+            console.print("\n[bold blue]Environment Variables[/bold blue]")
+            env_table = Table(title="All Environment Variables")
+            env_table.add_column("Variable", style="cyan")
+            env_table.add_column("Value", style="green")
+            env_table.add_column("Source", style="yellow")
+            
+            # Parse .env file to see which variables are actually set
+            env_file_vars = set()
+            env_file_path = Path(".env")
+            if env_file_path.exists():
+                with open(env_file_path, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            var_name = line.split('=', 1)[0].strip()
+                            env_file_vars.add(var_name)
+            
+            # Get all environment variables from config
+            env_vars = []
+            for field_name, field_info in config.__class__.model_fields.items():
+                if hasattr(config, field_name):
+                    value = getattr(config, field_name)
+                    # Format the value for display
+                    if isinstance(value, list):
+                        display_value = str(value)
+                    elif isinstance(value, bool):
+                        display_value = str(value)
+                    elif isinstance(value, (int, float)):
+                        display_value = str(value)
+                    else:
+                        display_value = str(value)
+                    
+                    # Determine source (env file or default)
+                    env_var_name = f"SAE_{field_name.upper()}"
+                    if env_var_name in env_file_vars:
+                        source = "Environment"
+                    else:
+                        source = "Default"
+                    
+                    env_vars.append((env_var_name, display_value, source))
+            
+            # Sort by variable name
+            env_vars.sort(key=lambda x: x[0])
+            
+            # Count sources
+            env_count = sum(1 for _, _, source in env_vars if source == "Environment")
+            default_count = sum(1 for _, _, source in env_vars if source == "Default")
+            
+            for var_name, value, source in env_vars:
+                env_table.add_row(var_name, value, source)
+            
+            console.print(env_table)
+            
+            # Print summary
+            console.print(f"\n[blue]Environment Summary:[/blue] {env_count} variables from environment, {default_count} using defaults")
+            
             # Print SAE Status
             print_status(sae_status)
             
