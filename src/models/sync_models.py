@@ -15,6 +15,11 @@ class MessageType(str, Enum):
     KEY_NOTIFICATION = "key_notification"
     KEY_ACKNOWLEDGMENT = "key_acknowledgment"
     SYNC_CONFIRMATION = "sync_confirmation"
+    CLEANUP_STATUS_REQUEST = "cleanup_status_request"
+    CLEANUP_STATUS_RESPONSE = "cleanup_status_response"
+    CLEANUP_DELETE_REQUEST = "cleanup_delete_request"
+    CLEANUP_DELETE_RESPONSE = "cleanup_delete_response"
+    CLEANUP_ACKNOWLEDGMENT = "cleanup_acknowledgment"
     ERROR = "error"
 
 
@@ -26,6 +31,9 @@ class SyncState(str, Enum):
     ACKNOWLEDGED = "acknowledged"
     CONFIRMED = "confirmed"
     ROTATING = "rotating"
+    CLEANUP_STATUS_CHECKING = "cleanup_status_checking"
+    CLEANUP_DELETING = "cleanup_deleting"
+    CLEANUP_COMPLETED = "cleanup_completed"
     ERROR = "error"
 
 
@@ -141,6 +149,126 @@ class SyncConfirmationMessage(BaseSyncMessage):
             raise ValueError('final_rotation_timestamp must be in the future')
         if v > current_time + 3600:  # More than 1 hour in future
             raise ValueError('final_rotation_timestamp is too far in future')
+        return v
+
+
+class CleanupStatusRequestMessage(BaseSyncMessage):
+    """Message sent by master SAE to request status check after key rotation."""
+    message_type: MessageType = MessageType.CLEANUP_STATUS_REQUEST
+    original_message_id: str = Field(..., description="ID of the original key notification message")
+    new_key_id: str = Field(..., description="ID of the newly rotated key")
+    
+    @validator('original_message_id')
+    def validate_original_message_id(cls, v):
+        """Validate original message ID is a valid UUID."""
+        try:
+            uuid.UUID(v)
+            return v
+        except ValueError:
+            raise ValueError('original_message_id must be a valid UUID')
+    
+    @validator('new_key_id')
+    def validate_new_key_id(cls, v):
+        """Validate new key ID is not empty."""
+        if not v.strip():
+            raise ValueError('new_key_id cannot be empty')
+        return v
+
+
+class CleanupStatusResponseMessage(BaseSyncMessage):
+    """Message sent by slave SAE to respond to status check request."""
+    message_type: MessageType = MessageType.CLEANUP_STATUS_RESPONSE
+    original_message_id: str = Field(..., description="ID of the original cleanup status request")
+    status: str = Field(..., description="Status: 'success' or 'failed'")
+    service_status: Optional[str] = Field(None, description="Detailed service status information")
+    error_message: Optional[str] = Field(None, description="Error message if status is 'failed'")
+    
+    @validator('original_message_id')
+    def validate_original_message_id(cls, v):
+        """Validate original message ID is a valid UUID."""
+        try:
+            uuid.UUID(v)
+            return v
+        except ValueError:
+            raise ValueError('original_message_id must be a valid UUID')
+    
+    @validator('status')
+    def validate_status(cls, v):
+        """Validate status is valid."""
+        if v not in ['success', 'failed']:
+            raise ValueError('status must be either "success" or "failed"')
+        return v
+
+
+class CleanupDeleteRequestMessage(BaseSyncMessage):
+    """Message sent by master SAE to request deletion of old keys."""
+    message_type: MessageType = MessageType.CLEANUP_DELETE_REQUEST
+    original_message_id: str = Field(..., description="ID of the original key notification message")
+    old_key_ids: List[str] = Field(..., min_items=1, description="List of old key IDs to delete")
+    
+    @validator('original_message_id')
+    def validate_original_message_id(cls, v):
+        """Validate original message ID is a valid UUID."""
+        try:
+            uuid.UUID(v)
+            return v
+        except ValueError:
+            raise ValueError('original_message_id must be a valid UUID')
+    
+    @validator('old_key_ids')
+    def validate_old_key_ids(cls, v):
+        """Validate old key IDs are not empty."""
+        if not v or any(not kid.strip() for kid in v):
+            raise ValueError('old_key_ids must contain non-empty strings')
+        return v
+
+
+class CleanupDeleteResponseMessage(BaseSyncMessage):
+    """Message sent by slave SAE to respond to delete request."""
+    message_type: MessageType = MessageType.CLEANUP_DELETE_RESPONSE
+    original_message_id: str = Field(..., description="ID of the original cleanup delete request")
+    status: str = Field(..., description="Status: 'success' or 'failed'")
+    deleted_key_ids: List[str] = Field(default_factory=list, description="List of successfully deleted key IDs")
+    failed_key_ids: List[str] = Field(default_factory=list, description="List of key IDs that failed to delete")
+    error_message: Optional[str] = Field(None, description="Error message if status is 'failed'")
+    
+    @validator('original_message_id')
+    def validate_original_message_id(cls, v):
+        """Validate original message ID is a valid UUID."""
+        try:
+            uuid.UUID(v)
+            return v
+        except ValueError:
+            raise ValueError('original_message_id must be a valid UUID')
+    
+    @validator('status')
+    def validate_status(cls, v):
+        """Validate status is valid."""
+        if v not in ['success', 'failed']:
+            raise ValueError('status must be either "success" or "failed"')
+        return v
+
+
+class CleanupAcknowledgmentMessage(BaseSyncMessage):
+    """Message sent by master SAE to acknowledge cleanup completion."""
+    message_type: MessageType = MessageType.CLEANUP_ACKNOWLEDGMENT
+    original_message_id: str = Field(..., description="ID of the original cleanup delete response")
+    status: str = Field(..., description="Status: 'completed' or 'failed'")
+    
+    @validator('original_message_id')
+    def validate_original_message_id(cls, v):
+        """Validate original message ID is a valid UUID."""
+        try:
+            uuid.UUID(v)
+            return v
+        except ValueError:
+            raise ValueError('original_message_id must be a valid UUID')
+    
+    @validator('status')
+    def validate_status(cls, v):
+        """Validate status is valid."""
+        if v not in ['completed', 'failed']:
+            raise ValueError('status must be either "completed" or "failed"')
         return v
 
 

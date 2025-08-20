@@ -7,7 +7,7 @@ import json
 import base64
 import hashlib
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pathlib import Path
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
@@ -220,6 +220,21 @@ class MessageSigner:
             elif message_type == 'sync_confirmation':
                 from ..models.sync_models import SyncConfirmationMessage
                 message = SyncConfirmationMessage(**message_data)
+            elif message_type == 'cleanup_status_request':
+                from ..models.sync_models import CleanupStatusRequestMessage
+                message = CleanupStatusRequestMessage(**message_data)
+            elif message_type == 'cleanup_status_response':
+                from ..models.sync_models import CleanupStatusResponseMessage
+                message = CleanupStatusResponseMessage(**message_data)
+            elif message_type == 'cleanup_delete_request':
+                from ..models.sync_models import CleanupDeleteRequestMessage
+                message = CleanupDeleteRequestMessage(**message_data)
+            elif message_type == 'cleanup_delete_response':
+                from ..models.sync_models import CleanupDeleteResponseMessage
+                message = CleanupDeleteResponseMessage(**message_data)
+            elif message_type == 'cleanup_acknowledgment':
+                from ..models.sync_models import CleanupAcknowledgmentMessage
+                message = CleanupAcknowledgmentMessage(**message_data)
             elif message_type == 'error':
                 from ..models.sync_models import ErrorMessage
                 message = ErrorMessage(**message_data)
@@ -467,6 +482,156 @@ class MessageSigner:
         message = SyncConfirmationMessage(
             original_message_id=original_message_id,
             final_rotation_timestamp=final_rotation_timestamp,
+            master_sae_id=master_sae_id,
+            slave_sae_id=slave_sae_id
+        )
+        
+        return self.sign_message(message, master_sae_id)
+    
+    def create_cleanup_status_request(self, original_message_id: str,
+                                    new_key_id: str,
+                                    master_sae_id: str, slave_sae_id: str) -> SignedMessage:
+        """
+        Create a signed cleanup status request message.
+        
+        Args:
+            original_message_id: ID of the original key notification message
+            new_key_id: ID of the newly rotated key
+            master_sae_id: Master SAE ID
+            slave_sae_id: Slave SAE ID
+            
+        Returns:
+            SignedMessage: The signed cleanup status request message
+        """
+        from ..models.sync_models import CleanupStatusRequestMessage
+        
+        message = CleanupStatusRequestMessage(
+            original_message_id=original_message_id,
+            new_key_id=new_key_id,
+            master_sae_id=master_sae_id,
+            slave_sae_id=slave_sae_id
+        )
+        
+        return self.sign_message(message, master_sae_id)
+    
+    def create_cleanup_status_response(self, original_message_id: str,
+                                     status: str,
+                                     master_sae_id: str, slave_sae_id: str,
+                                     service_status: Optional[str] = None,
+                                     error_message: Optional[str] = None) -> SignedMessage:
+        """
+        Create a signed cleanup status response message.
+        
+        Args:
+            original_message_id: ID of the original cleanup status request
+            status: Status ('success' or 'failed')
+            master_sae_id: Master SAE ID
+            slave_sae_id: Slave SAE ID
+            service_status: Optional detailed service status
+            error_message: Optional error message if status is 'failed'
+            
+        Returns:
+            SignedMessage: The signed cleanup status response message
+        """
+        from ..models.sync_models import CleanupStatusResponseMessage
+        
+        message = CleanupStatusResponseMessage(
+            original_message_id=original_message_id,
+            status=status,
+            master_sae_id=master_sae_id,
+            slave_sae_id=slave_sae_id,
+            service_status=service_status,
+            error_message=error_message
+        )
+        
+        return self.sign_message(message, slave_sae_id)
+    
+    def create_cleanup_delete_request(self, original_message_id: str,
+                                    old_key_ids: List[str],
+                                    master_sae_id: str, slave_sae_id: str) -> SignedMessage:
+        """
+        Create a signed cleanup delete request message.
+        
+        Args:
+            original_message_id: ID of the original key notification message
+            old_key_ids: List of old key IDs to delete
+            master_sae_id: Master SAE ID
+            slave_sae_id: Slave SAE ID
+            
+        Returns:
+            SignedMessage: The signed cleanup delete request message
+        """
+        from ..models.sync_models import CleanupDeleteRequestMessage
+        
+        message = CleanupDeleteRequestMessage(
+            original_message_id=original_message_id,
+            old_key_ids=old_key_ids,
+            master_sae_id=master_sae_id,
+            slave_sae_id=slave_sae_id
+        )
+        
+        return self.sign_message(message, master_sae_id)
+    
+    def create_cleanup_delete_response(self, original_message_id: str,
+                                     status: str,
+                                     master_sae_id: str, slave_sae_id: str,
+                                     deleted_key_ids: List[str] = None,
+                                     failed_key_ids: List[str] = None,
+                                     error_message: Optional[str] = None) -> SignedMessage:
+        """
+        Create a signed cleanup delete response message.
+        
+        Args:
+            original_message_id: ID of the original cleanup delete request
+            status: Status ('success' or 'failed')
+            master_sae_id: Master SAE ID
+            slave_sae_id: Slave SAE ID
+            deleted_key_ids: List of successfully deleted key IDs
+            failed_key_ids: List of key IDs that failed to delete
+            error_message: Optional error message if status is 'failed'
+            
+        Returns:
+            SignedMessage: The signed cleanup delete response message
+        """
+        from ..models.sync_models import CleanupDeleteResponseMessage
+        
+        if deleted_key_ids is None:
+            deleted_key_ids = []
+        if failed_key_ids is None:
+            failed_key_ids = []
+        
+        message = CleanupDeleteResponseMessage(
+            original_message_id=original_message_id,
+            status=status,
+            master_sae_id=master_sae_id,
+            slave_sae_id=slave_sae_id,
+            deleted_key_ids=deleted_key_ids,
+            failed_key_ids=failed_key_ids,
+            error_message=error_message
+        )
+        
+        return self.sign_message(message, slave_sae_id)
+    
+    def create_cleanup_acknowledgment(self, original_message_id: str,
+                                    status: str,
+                                    master_sae_id: str, slave_sae_id: str) -> SignedMessage:
+        """
+        Create a signed cleanup acknowledgment message.
+        
+        Args:
+            original_message_id: ID of the original cleanup delete response
+            status: Status ('completed' or 'failed')
+            master_sae_id: Master SAE ID
+            slave_sae_id: Slave SAE ID
+            
+        Returns:
+            SignedMessage: The signed cleanup acknowledgment message
+        """
+        from ..models.sync_models import CleanupAcknowledgmentMessage
+        
+        message = CleanupAcknowledgmentMessage(
+            original_message_id=original_message_id,
+            status=status,
             master_sae_id=master_sae_id,
             slave_sae_id=slave_sae_id
         )

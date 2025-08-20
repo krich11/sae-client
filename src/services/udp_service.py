@@ -44,6 +44,11 @@ class UDPService:
         self.register_handler(MessageType.KEY_NOTIFICATION, self._handle_key_notification)
         self.register_handler(MessageType.KEY_ACKNOWLEDGMENT, self._handle_key_acknowledgment)
         self.register_handler(MessageType.SYNC_CONFIRMATION, self._handle_sync_confirmation)
+        self.register_handler(MessageType.CLEANUP_STATUS_REQUEST, self._handle_cleanup_status_request)
+        self.register_handler(MessageType.CLEANUP_STATUS_RESPONSE, self._handle_cleanup_status_response)
+        self.register_handler(MessageType.CLEANUP_DELETE_REQUEST, self._handle_cleanup_delete_request)
+        self.register_handler(MessageType.CLEANUP_DELETE_RESPONSE, self._handle_cleanup_delete_response)
+        self.register_handler(MessageType.CLEANUP_ACKNOWLEDGMENT, self._handle_cleanup_acknowledgment)
         self.register_handler(MessageType.ERROR, self._handle_error_message)
     
     def register_handler(self, message_type: MessageType, handler: Callable):
@@ -607,6 +612,263 @@ class UDPService:
         # Schedule key rotation
         self._schedule_key_rotation(message)
     
+    def _handle_cleanup_status_request(self, message: BaseSyncMessage, addr: tuple):
+        """Handle cleanup status request message from master."""
+        from ..models.sync_models import CleanupStatusRequestMessage
+        
+        if not isinstance(message, CleanupStatusRequestMessage):
+            self.logger.error("Invalid message type for cleanup status request handler")
+            return
+        
+        # Debug logging for cleanup status request
+        if self.config.debug_mode:
+            self.logger.info(f"CLEANUP STATUS REQUEST RECEIVED:")
+            self.logger.info(f"  Master SAE: {message.master_sae_id}")
+            self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+            self.logger.info(f"  Original Message ID: {message.original_message_id}")
+            self.logger.info(f"  New Key ID: {message.new_key_id}")
+        
+        self.logger.info(f"Received cleanup status request from {message.master_sae_id}")
+        self.logger.info(f"Checking status for new key: {message.new_key_id}")
+        
+        # Console notification for interactive mode
+        if self.config.debug_mode:
+            self._print_console_notification("CLEANUP STATUS REQUEST", {
+                "From": message.master_sae_id,
+                "To": message.slave_sae_id,
+                "New Key ID": message.new_key_id,
+                "Original Message": message.original_message_id[:8] + "...",
+                "Signature": "✓ VALID",
+                "Address": f"{addr[0]}:{addr[1]}"
+            })
+        
+        # Check service status using persona
+        status = "success"
+        service_status = "Service operational"
+        error_message = None
+        
+        try:
+            # Load configured persona
+            persona = self._load_persona_plugin("configured")
+            if persona:
+                # Test service status
+                if hasattr(persona, 'test_connection'):
+                    if persona.test_connection():
+                        status = "success"
+                        service_status = "Service connection successful"
+                    else:
+                        status = "failed"
+                        error_message = "Service connection failed"
+                else:
+                    # Default success if no test method available
+                    status = "success"
+                    service_status = "Service status check completed"
+            else:
+                status = "failed"
+                error_message = "No persona available for status check"
+                
+        except Exception as e:
+            status = "failed"
+            error_message = f"Status check error: {str(e)}"
+            self.logger.error(f"Error checking service status: {e}")
+        
+        # Send status response
+        self._send_cleanup_status_response(message, status, service_status, error_message, addr)
+    
+    def _handle_cleanup_status_response(self, message: BaseSyncMessage, addr: tuple):
+        """Handle cleanup status response message from slave."""
+        from ..models.sync_models import CleanupStatusResponseMessage
+        
+        if not isinstance(message, CleanupStatusResponseMessage):
+            self.logger.error("Invalid message type for cleanup status response handler")
+            return
+        
+        # Debug logging for cleanup status response
+        if self.config.debug_mode:
+            self.logger.info(f"CLEANUP STATUS RESPONSE RECEIVED:")
+            self.logger.info(f"  Master SAE: {message.master_sae_id}")
+            self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+            self.logger.info(f"  Original Message ID: {message.original_message_id}")
+            self.logger.info(f"  Status: {message.status}")
+            self.logger.info(f"  Service Status: {message.service_status}")
+            if message.error_message:
+                self.logger.info(f"  Error: {message.error_message}")
+        
+        self.logger.info(f"Received cleanup status response from {message.slave_sae_id}")
+        self.logger.info(f"Status: {message.status}")
+        
+        # Console notification for interactive mode
+        if self.config.debug_mode:
+            self._print_console_notification("CLEANUP STATUS RESPONSE", {
+                "From": message.slave_sae_id,
+                "To": message.master_sae_id,
+                "Status": message.status,
+                "Service Status": message.service_status or "N/A",
+                "Error": message.error_message or "None",
+                "Original Message": message.original_message_id[:8] + "...",
+                "Signature": "✓ VALID",
+                "Address": f"{addr[0]}:{addr[1]}"
+            })
+        
+        # Handle based on status
+        if message.status == "success":
+            # Service is healthy, proceed with cleanup
+            self.logger.info("Service status check successful, proceeding with cleanup")
+            self._initiate_cleanup_deletion(message.original_message_id, message.master_sae_id, message.slave_sae_id, addr)
+        else:
+            # Service failed, initiate rollback
+            self.logger.error("Service status check failed, initiating rollback")
+            self._initiate_rollback(message.original_message_id, message.master_sae_id, message.slave_sae_id, addr)
+    
+    def _handle_cleanup_delete_request(self, message: BaseSyncMessage, addr: tuple):
+        """Handle cleanup delete request message from master."""
+        from ..models.sync_models import CleanupDeleteRequestMessage
+        
+        if not isinstance(message, CleanupDeleteRequestMessage):
+            self.logger.error("Invalid message type for cleanup delete request handler")
+            return
+        
+        # Debug logging for cleanup delete request
+        if self.config.debug_mode:
+            self.logger.info(f"CLEANUP DELETE REQUEST RECEIVED:")
+            self.logger.info(f"  Master SAE: {message.master_sae_id}")
+            self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+            self.logger.info(f"  Original Message ID: {message.original_message_id}")
+            self.logger.info(f"  Old Key IDs: {message.old_key_ids}")
+        
+        self.logger.info(f"Received cleanup delete request from {message.master_sae_id}")
+        self.logger.info(f"Deleting old keys: {message.old_key_ids}")
+        
+        # Console notification for interactive mode
+        if self.config.debug_mode:
+            self._print_console_notification("CLEANUP DELETE REQUEST", {
+                "From": message.master_sae_id,
+                "To": message.slave_sae_id,
+                "Old Key IDs": ", ".join(message.old_key_ids),
+                "Original Message": message.original_message_id[:8] + "...",
+                "Signature": "✓ VALID",
+                "Address": f"{addr[0]}:{addr[1]}"
+            })
+        
+        # Delete old keys using persona
+        deleted_key_ids = []
+        failed_key_ids = []
+        status = "success"
+        error_message = None
+        
+        try:
+            # Load configured persona
+            persona = self._load_persona_plugin("configured")
+            if persona:
+                for key_id in message.old_key_ids:
+                    try:
+                        if hasattr(persona, 'delete_key'):
+                            if persona.delete_key(key_id):
+                                deleted_key_ids.append(key_id)
+                                self.logger.info(f"Successfully deleted key: {key_id}")
+                            else:
+                                failed_key_ids.append(key_id)
+                                self.logger.warning(f"Failed to delete key: {key_id}")
+                        else:
+                            # Default success if no delete method available
+                            deleted_key_ids.append(key_id)
+                            self.logger.info(f"Key deletion simulated for: {key_id}")
+                    except Exception as e:
+                        failed_key_ids.append(key_id)
+                        self.logger.error(f"Error deleting key {key_id}: {e}")
+                
+                if failed_key_ids:
+                    status = "failed"
+                    error_message = f"Failed to delete keys: {', '.join(failed_key_ids)}"
+            else:
+                status = "failed"
+                error_message = "No persona available for key deletion"
+                
+        except Exception as e:
+            status = "failed"
+            error_message = f"Cleanup deletion error: {str(e)}"
+            self.logger.error(f"Error during cleanup deletion: {e}")
+        
+        # Send delete response
+        self._send_cleanup_delete_response(message, status, deleted_key_ids, failed_key_ids, error_message, addr)
+    
+    def _handle_cleanup_delete_response(self, message: BaseSyncMessage, addr: tuple):
+        """Handle cleanup delete response message from slave."""
+        from ..models.sync_models import CleanupDeleteResponseMessage
+        
+        if not isinstance(message, CleanupDeleteResponseMessage):
+            self.logger.error("Invalid message type for cleanup delete response handler")
+            return
+        
+        # Debug logging for cleanup delete response
+        if self.config.debug_mode:
+            self.logger.info(f"CLEANUP DELETE RESPONSE RECEIVED:")
+            self.logger.info(f"  Master SAE: {message.master_sae_id}")
+            self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+            self.logger.info(f"  Original Message ID: {message.original_message_id}")
+            self.logger.info(f"  Status: {message.status}")
+            self.logger.info(f"  Deleted Keys: {message.deleted_key_ids}")
+            self.logger.info(f"  Failed Keys: {message.failed_key_ids}")
+            if message.error_message:
+                self.logger.info(f"  Error: {message.error_message}")
+        
+        self.logger.info(f"Received cleanup delete response from {message.slave_sae_id}")
+        self.logger.info(f"Status: {message.status}")
+        
+        # Console notification for interactive mode
+        if self.config.debug_mode:
+            self._print_console_notification("CLEANUP DELETE RESPONSE", {
+                "From": message.slave_sae_id,
+                "To": message.master_sae_id,
+                "Status": message.status,
+                "Deleted Keys": ", ".join(message.deleted_key_ids) if message.deleted_key_ids else "None",
+                "Failed Keys": ", ".join(message.failed_key_ids) if message.failed_key_ids else "None",
+                "Error": message.error_message or "None",
+                "Original Message": message.original_message_id[:8] + "...",
+                "Signature": "✓ VALID",
+                "Address": f"{addr[0]}:{addr[1]}"
+            })
+        
+        # Send acknowledgment
+        final_status = "completed" if message.status == "success" else "failed"
+        self._send_cleanup_acknowledgment(message, final_status, addr)
+    
+    def _handle_cleanup_acknowledgment(self, message: BaseSyncMessage, addr: tuple):
+        """Handle cleanup acknowledgment message from master."""
+        from ..models.sync_models import CleanupAcknowledgmentMessage
+        
+        if not isinstance(message, CleanupAcknowledgmentMessage):
+            self.logger.error("Invalid message type for cleanup acknowledgment handler")
+            return
+        
+        # Debug logging for cleanup acknowledgment
+        if self.config.debug_mode:
+            self.logger.info(f"CLEANUP ACKNOWLEDGMENT RECEIVED:")
+            self.logger.info(f"  Master SAE: {message.master_sae_id}")
+            self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+            self.logger.info(f"  Original Message ID: {message.original_message_id}")
+            self.logger.info(f"  Status: {message.status}")
+        
+        self.logger.info(f"Received cleanup acknowledgment from {message.master_sae_id}")
+        self.logger.info(f"Cleanup status: {message.status}")
+        
+        # Console notification for interactive mode
+        if self.config.debug_mode:
+            self._print_console_notification("CLEANUP ACKNOWLEDGMENT", {
+                "From": message.master_sae_id,
+                "To": message.slave_sae_id,
+                "Status": message.status,
+                "Original Message": message.original_message_id[:8] + "...",
+                "Signature": "✓ VALID",
+                "Address": f"{addr[0]}:{addr[1]}"
+            })
+        
+        # Cleanup protocol completed
+        if message.status == "completed":
+            self.logger.info("Cleanup protocol completed successfully")
+        else:
+            self.logger.warning("Cleanup protocol completed with failures")
+    
     def _handle_error_message(self, message: BaseSyncMessage, addr: tuple):
         """Handle error message."""
         from ..models.sync_models import ErrorMessage
@@ -912,6 +1174,197 @@ class UDPService:
         except Exception as e:
             self.logger.error(f"Error executing key rotation: {e}")
     
+    def _send_cleanup_status_response(self, original_message, status, service_status, error_message, addr):
+        """Send cleanup status response message."""
+        try:
+            from ..utils.message_signer import message_signer
+            
+            # Create status response message
+            status_response = message_signer.create_cleanup_status_response(
+                original_message_id=original_message.message_id,
+                status=status,
+                master_sae_id=original_message.master_sae_id,
+                slave_sae_id=original_message.slave_sae_id,
+                service_status=service_status,
+                error_message=error_message
+            )
+            
+            # Debug logging for status response creation
+            if self.config.debug_mode:
+                self.logger.info(f"CLEANUP STATUS RESPONSE CREATION:")
+                self.logger.info(f"  Original Message ID: {original_message.message_id}")
+                self.logger.info(f"  Status: {status}")
+                self.logger.info(f"  Service Status: {service_status}")
+                self.logger.info(f"  Error Message: {error_message}")
+                self.logger.info(f"  Target Address: {addr[0]}:{addr[1]}")
+            
+            # Send message
+            success = self.send_message(status_response, addr[0], addr[1])
+            
+            if success:
+                self.logger.info("Sent cleanup status response")
+            else:
+                self.logger.error("Failed to send cleanup status response")
+                
+        except Exception as e:
+            self.logger.error(f"Error sending cleanup status response: {e}")
+    
+    def _send_cleanup_delete_response(self, original_message, status, deleted_key_ids, failed_key_ids, error_message, addr):
+        """Send cleanup delete response message."""
+        try:
+            from ..utils.message_signer import message_signer
+            
+            # Create delete response message
+            delete_response = message_signer.create_cleanup_delete_response(
+                original_message_id=original_message.message_id,
+                status=status,
+                master_sae_id=original_message.master_sae_id,
+                slave_sae_id=original_message.slave_sae_id,
+                deleted_key_ids=deleted_key_ids,
+                failed_key_ids=failed_key_ids,
+                error_message=error_message
+            )
+            
+            # Debug logging for delete response creation
+            if self.config.debug_mode:
+                self.logger.info(f"CLEANUP DELETE RESPONSE CREATION:")
+                self.logger.info(f"  Original Message ID: {original_message.message_id}")
+                self.logger.info(f"  Status: {status}")
+                self.logger.info(f"  Deleted Keys: {deleted_key_ids}")
+                self.logger.info(f"  Failed Keys: {failed_key_ids}")
+                self.logger.info(f"  Error Message: {error_message}")
+                self.logger.info(f"  Target Address: {addr[0]}:{addr[1]}")
+            
+            # Send message
+            success = self.send_message(delete_response, addr[0], addr[1])
+            
+            if success:
+                self.logger.info("Sent cleanup delete response")
+            else:
+                self.logger.error("Failed to send cleanup delete response")
+                
+        except Exception as e:
+            self.logger.error(f"Error sending cleanup delete response: {e}")
+    
+    def _send_cleanup_acknowledgment(self, original_message, status, addr):
+        """Send cleanup acknowledgment message."""
+        try:
+            from ..utils.message_signer import message_signer
+            
+            # Create acknowledgment message
+            acknowledgment = message_signer.create_cleanup_acknowledgment(
+                original_message_id=original_message.message_id,
+                status=status,
+                master_sae_id=original_message.master_sae_id,
+                slave_sae_id=original_message.slave_sae_id
+            )
+            
+            # Debug logging for acknowledgment creation
+            if self.config.debug_mode:
+                self.logger.info(f"CLEANUP ACKNOWLEDGMENT CREATION:")
+                self.logger.info(f"  Original Message ID: {original_message.message_id}")
+                self.logger.info(f"  Status: {status}")
+                self.logger.info(f"  Target Address: {addr[0]}:{addr[1]}")
+            
+            # Send message
+            success = self.send_message(acknowledgment, addr[0], addr[1])
+            
+            if success:
+                self.logger.info("Sent cleanup acknowledgment")
+            else:
+                self.logger.error("Failed to send cleanup acknowledgment")
+                
+        except Exception as e:
+            self.logger.error(f"Error sending cleanup acknowledgment: {e}")
+    
+    def _initiate_cleanup_deletion(self, original_message_id, master_sae_id, slave_sae_id, addr):
+        """Initiate cleanup deletion after successful status check."""
+        try:
+            from ..utils.message_signer import message_signer
+            from ..services.key_service import key_service
+            
+            # Get old keys that need to be deleted
+            old_keys = key_service.get_rolled_keys()
+            old_key_ids = [key.key_id for key in old_keys]
+            
+            if not old_key_ids:
+                self.logger.info("No old keys to delete")
+                return
+            
+            # Create delete request message
+            delete_request = message_signer.create_cleanup_delete_request(
+                original_message_id=original_message_id,
+                old_key_ids=old_key_ids,
+                master_sae_id=master_sae_id,
+                slave_sae_id=slave_sae_id
+            )
+            
+            # Debug logging for delete request creation
+            if self.config.debug_mode:
+                self.logger.info(f"CLEANUP DELETE REQUEST CREATION:")
+                self.logger.info(f"  Original Message ID: {original_message_id}")
+                self.logger.info(f"  Old Key IDs: {old_key_ids}")
+                self.logger.info(f"  Target Address: {addr[0]}:{addr[1]}")
+            
+            # Send delete request
+            success = self.send_message(delete_request, addr[0], addr[1])
+            
+            if success:
+                self.logger.info("Sent cleanup delete request")
+            else:
+                self.logger.error("Failed to send cleanup delete request")
+                
+        except Exception as e:
+            self.logger.error(f"Error initiating cleanup deletion: {e}")
+    
+    def _initiate_rollback(self, original_message_id, master_sae_id, slave_sae_id, addr):
+        """Initiate rollback after failed status check."""
+        try:
+            self.logger.error("Initiating rollback due to failed status check")
+            
+            # TODO: Implement rollback logic
+            # This would involve:
+            # 1. Reverting the new key to available status
+            # 2. Restoring the old key to in_production status
+            # 3. Notifying the slave to rollback the key rotation
+            
+            self.logger.warning("Rollback functionality not yet implemented")
+            
+        except Exception as e:
+            self.logger.error(f"Error initiating rollback: {e}")
+    
+    def initiate_cleanup_protocol(self, original_message_id, new_key_id, slave_sae_id, slave_host, slave_port):
+        """Initiate the cleanup protocol after successful key rotation."""
+        try:
+            from ..utils.message_signer import message_signer
+            
+            # Create status request message
+            status_request = message_signer.create_cleanup_status_request(
+                original_message_id=original_message_id,
+                new_key_id=new_key_id,
+                master_sae_id=self.config.sae_id,
+                slave_sae_id=slave_sae_id
+            )
+            
+            # Debug logging for status request creation
+            if self.config.debug_mode:
+                self.logger.info(f"CLEANUP STATUS REQUEST CREATION:")
+                self.logger.info(f"  Original Message ID: {original_message_id}")
+                self.logger.info(f"  New Key ID: {new_key_id}")
+                self.logger.info(f"  Slave SAE: {slave_sae_id}")
+                self.logger.info(f"  Target Address: {slave_host}:{slave_port}")
+            
+            # Send status request
+            success = self.send_message(status_request, slave_host, slave_port)
+            
+            if success:
+                self.logger.info("Initiated cleanup protocol - sent status request")
+            else:
+                self.logger.error("Failed to initiate cleanup protocol")
+                
+        except Exception as e:
+            self.logger.error(f"Error initiating cleanup protocol: {e}")
+    
     def _execute_device_rotation(self, message):
         """Execute device-specific key rotation using persona plugin."""
         try:
@@ -975,6 +1428,28 @@ class UDPService:
                         if old_key.key_id != actual_key_id:  # Don't mark the new key as rolled
                             key_service.mark_key_rolled(old_key.key_id, actual_key_id)
                             self.logger.info(f"Marked old key {old_key.key_id} as rolled (replaced by {actual_key_id})")
+                    
+                    # Step 3: Initiate cleanup protocol to verify service status and delete old keys
+                    self.logger.info("Initiating cleanup protocol after successful rotation")
+                    
+                    # Get slave connection details from session
+                    slave_host = "127.0.0.1"  # Default localhost
+                    slave_port = self.sync_config.udp_port  # Default UDP port
+                    
+                    # Try to get slave details from session metadata if available
+                    if session and hasattr(session, 'slave_host'):
+                        slave_host = session.slave_host
+                    if session and hasattr(session, 'slave_port'):
+                        slave_port = session.slave_port
+                    
+                    # Initiate cleanup protocol
+                    self.initiate_cleanup_protocol(
+                        original_message_id=message.original_message_id,
+                        new_key_id=actual_key_id,
+                        slave_sae_id=message.slave_sae_id,
+                        slave_host=slave_host,
+                        slave_port=slave_port
+                    )
                 else:
                     self.logger.error(f"Key rotation failed using {persona_name} persona")
             else:
