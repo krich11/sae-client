@@ -238,6 +238,30 @@ class UDPService:
                     session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
                 else:
                     session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
+            elif message.message_type == MessageType.CLEANUP_STATUS_REQUEST:
+                from ..models.sync_models import CleanupStatusRequestMessage
+                if isinstance(message, CleanupStatusRequestMessage):
+                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
+                else:
+                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
+            elif message.message_type == MessageType.CLEANUP_STATUS_RESPONSE:
+                from ..models.sync_models import CleanupStatusResponseMessage
+                if isinstance(message, CleanupStatusResponseMessage):
+                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
+                else:
+                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
+            elif message.message_type == MessageType.CLEANUP_DELETE_REQUEST:
+                from ..models.sync_models import CleanupDeleteRequestMessage
+                if isinstance(message, CleanupDeleteRequestMessage):
+                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
+                else:
+                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
+            elif message.message_type == MessageType.CLEANUP_DELETE_RESPONSE:
+                from ..models.sync_models import CleanupDeleteResponseMessage
+                if isinstance(message, CleanupDeleteResponseMessage):
+                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
+                else:
+                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
             else:
                 session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
             
@@ -257,6 +281,22 @@ class UDPService:
                 elif message.message_type == MessageType.ROTATION_COMPLETED:
                     from ..models.sync_models import RotationCompletedMessage
                     if isinstance(message, RotationCompletedMessage):
+                        self.logger.info(f"  Original Message ID: {message.original_message_id}")
+                elif message.message_type == MessageType.CLEANUP_STATUS_REQUEST:
+                    from ..models.sync_models import CleanupStatusRequestMessage
+                    if isinstance(message, CleanupStatusRequestMessage):
+                        self.logger.info(f"  Original Message ID: {message.original_message_id}")
+                elif message.message_type == MessageType.CLEANUP_STATUS_RESPONSE:
+                    from ..models.sync_models import CleanupStatusResponseMessage
+                    if isinstance(message, CleanupStatusResponseMessage):
+                        self.logger.info(f"  Original Message ID: {message.original_message_id}")
+                elif message.message_type == MessageType.CLEANUP_DELETE_REQUEST:
+                    from ..models.sync_models import CleanupDeleteRequestMessage
+                    if isinstance(message, CleanupDeleteRequestMessage):
+                        self.logger.info(f"  Original Message ID: {message.original_message_id}")
+                elif message.message_type == MessageType.CLEANUP_DELETE_RESPONSE:
+                    from ..models.sync_models import CleanupDeleteResponseMessage
+                    if isinstance(message, CleanupDeleteResponseMessage):
                         self.logger.info(f"  Original Message ID: {message.original_message_id}")
                 self.logger.info(f"  Session ID: {session_id}")
                 self.logger.info(f"  Master SAE: {message.master_sae_id}")
@@ -328,11 +368,18 @@ class UDPService:
         Returns:
             StateMessageType: State machine message type
         """
+        # Since both enums have the same values, we can map directly
+        # The state machine uses different names for some message types
         mapping = {
             MessageType.KEY_NOTIFICATION: StateMessageType.NOTIFY,
             MessageType.KEY_ACKNOWLEDGMENT: StateMessageType.NOTIFY_ACK,
             MessageType.SYNC_CONFIRMATION: StateMessageType.ACK,
             MessageType.ROTATION_COMPLETED: StateMessageType.ROTATION_COMPLETED,
+            MessageType.CLEANUP_STATUS_REQUEST: StateMessageType.CLEANUP_STATUS_REQUEST,
+            MessageType.CLEANUP_STATUS_RESPONSE: StateMessageType.CLEANUP_STATUS_RESPONSE,
+            MessageType.CLEANUP_DELETE_REQUEST: StateMessageType.CLEANUP_DELETE_REQUEST,
+            MessageType.CLEANUP_DELETE_RESPONSE: StateMessageType.CLEANUP_DELETE_RESPONSE,
+            MessageType.CLEANUP_ACKNOWLEDGMENT: StateMessageType.CLEANUP_ACKNOWLEDGMENT,
             MessageType.ERROR: StateMessageType.ERROR
         }
         return mapping.get(message_type, StateMessageType.ERROR)

@@ -30,6 +30,11 @@ class MessageType(Enum):
     NOTIFY_ACK = "key_acknowledgment"
     ACK = "sync_confirmation"
     ROTATION_COMPLETED = "rotation_completed"
+    CLEANUP_STATUS_REQUEST = "cleanup_status_request"
+    CLEANUP_STATUS_RESPONSE = "cleanup_status_response"
+    CLEANUP_DELETE_REQUEST = "cleanup_delete_request"
+    CLEANUP_DELETE_RESPONSE = "cleanup_delete_response"
+    CLEANUP_ACKNOWLEDGMENT = "cleanup_acknowledgment"
     ERROR = "error"
 
 
@@ -173,6 +178,16 @@ class SyncStateMachine:
                 return True, "Slave accepting new notification"
             elif message_type == MessageType.ROTATION_COMPLETED and is_master:
                 return True, "Master accepting rotation completed notification"
+            elif message_type == MessageType.CLEANUP_STATUS_REQUEST and is_slave:
+                return True, "Slave accepting cleanup status request in confirmed state"
+            elif message_type == MessageType.CLEANUP_STATUS_RESPONSE and is_master:
+                return True, "Master accepting cleanup status response in confirmed state"
+            elif message_type == MessageType.CLEANUP_DELETE_REQUEST and is_slave:
+                return True, "Slave accepting cleanup delete request in confirmed state"
+            elif message_type == MessageType.CLEANUP_DELETE_RESPONSE and is_master:
+                return True, "Master accepting cleanup delete response in confirmed state"
+            elif message_type == MessageType.CLEANUP_ACKNOWLEDGMENT and (is_master or is_slave):
+                return True, "Accepting cleanup acknowledgment in confirmed state"
             else:
                 return False, f"Invalid message {message_type.value} in {current_state.value} state"
         
@@ -181,12 +196,32 @@ class SyncStateMachine:
                 return True, "Slave accepting new notification during rotation"
             elif message_type == MessageType.ROTATION_COMPLETED and is_master:
                 return True, "Master accepting rotation completed notification"
+            elif message_type == MessageType.CLEANUP_STATUS_REQUEST and is_slave:
+                return True, "Slave accepting cleanup status request during rotation"
+            elif message_type == MessageType.CLEANUP_STATUS_RESPONSE and is_master:
+                return True, "Master accepting cleanup status response during rotation"
+            elif message_type == MessageType.CLEANUP_DELETE_REQUEST and is_slave:
+                return True, "Slave accepting cleanup delete request during rotation"
+            elif message_type == MessageType.CLEANUP_DELETE_RESPONSE and is_master:
+                return True, "Master accepting cleanup delete response during rotation"
+            elif message_type == MessageType.CLEANUP_ACKNOWLEDGMENT and (is_master or is_slave):
+                return True, "Accepting cleanup acknowledgment during rotation"
             else:
                 return False, f"Invalid message {message_type.value} in {current_state.value} state"
         
         elif current_state.value == SyncState.PENDING_DONE.value:
             if message_type == MessageType.ROTATION_COMPLETED and is_master:
                 return True, "Master accepting rotation completed notification in pending done state"
+            elif message_type == MessageType.CLEANUP_STATUS_REQUEST and is_slave:
+                return True, "Slave accepting cleanup status request in pending done state"
+            elif message_type == MessageType.CLEANUP_STATUS_RESPONSE and is_master:
+                return True, "Master accepting cleanup status response in pending done state"
+            elif message_type == MessageType.CLEANUP_DELETE_REQUEST and is_slave:
+                return True, "Slave accepting cleanup delete request in pending done state"
+            elif message_type == MessageType.CLEANUP_DELETE_RESPONSE and is_master:
+                return True, "Master accepting cleanup delete response in pending done state"
+            elif message_type == MessageType.CLEANUP_ACKNOWLEDGMENT and (is_master or is_slave):
+                return True, "Accepting cleanup acknowledgment in pending done state"
             elif message_type == MessageType.NOTIFY and is_slave:
                 return True, "Slave accepting new notification in pending done state"
             else:
