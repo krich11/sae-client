@@ -4,43 +4,42 @@ SAE Client Command Line Interface.
 Main entry point for the SAE client application.
 """
 
-import sys
-import time
-import os
 import json
-import click
 import logging
 import readline
-from pathlib import Path
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.prompt import Prompt, Confirm
-from rich.progress import Progress, SpinnerColumn, TextColumn
+import sys
+import time
 from datetime import datetime
+from pathlib import Path
+
+import click
+from rich.console import Console
+from rich.prompt import Confirm
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
 
 # Add src directory to Python path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from src.config import config_manager, config, logger
 from src.api.client import kme_client
+from src.config import config, config_manager
+from src.models.api_models import KeyType, SAEStatus
 from src.services.notification_service import master_notification_service, slave_notification_service
-from src.models.api_models import KeyType, KeyStatus, SAEStatus
 
 console = Console()
 
 # Hierarchical command structure for autocomplete
 COMMAND_HIERARCHY = {
-                    'show': {
-                    'health': {},
-                    'status': {'<sae_id>': {}},
-                    'keys': {'[keyid <key_id>]': {}},
-                    'sync': {'status': {}},
-                    'scheduled': {},
-                    'personas': {},
-                    'peer': {'[peer_id]': {}},
-                    'env': {}
-                },
+    'show': {
+        'health': {},
+        'status': {'<sae_id>': {}},
+        'keys': {'[keyid <key_id>]': {}},
+        'sync': {'status': {}},
+        'scheduled': {},
+        'personas': {},
+        'peer': {'[peer_id]': {}},
+        'env': {}
+    },
     'key': {
         'request': {
             'encryption': {
@@ -85,6 +84,7 @@ COMMAND_HIERARCHY = {
 AVAILABLE_COMMANDS = [
     'show', 'key', 'persona', 'peer', 'debug', 'test-menu', 'help', '?', 'quit', 'exit', 'q'
 ]
+
 
 def command_completer(text, state):
     """Hierarchical command completer function for readline."""
@@ -202,7 +202,7 @@ def print_keys(keys, title="Available Keys"):
                 
                 # Add a row with full key material and MD5 hash
                 table.add_row(
-                    f"[dim]Full Key Material:[/dim]",
+                    "[dim]Full Key Material:[/dim]",
                     f"[dim]{key.key}[/dim]",  # Full key material - no truncation
                     f"[dim]MD5: {md5_hash}[/dim]",
                     ""  # Empty for key extension column
@@ -255,7 +255,7 @@ def print_keys(keys, title="Available Keys"):
                 
                 # Add a row with full key material and MD5 hash
                 table.add_row(
-                    f"[dim]Full Key Material:[/dim]",
+                    "[dim]Full Key Material:[/dim]",
                     f"[dim]{key.key_material}[/dim]",  # Full key material - no truncation
                     f"[dim]MD5: {md5_hash}[/dim]",
                     "",  # Empty for status column
@@ -473,7 +473,7 @@ def health():
             print_status(sae_status)
             
             # Show KME server information
-            console.print(f"\n[bold blue]KME Server Information[/bold blue]")
+            console.print("\n[bold blue]KME Server Information[/bold blue]")
             console.print(f"[green]✓[/green] Status: {kme_health.status}")
             
             # Show combined KME information
@@ -548,12 +548,6 @@ def status(slave_id):
         except Exception as e:
             progress.update(task, completed=True)
             console.print(f"[red]✗[/red] Status check error: {e}")
-            console.print(f"[green]✓[/green] Version: {kme_root_info.get('version', 'unknown')}")
-            console.print(f"[green]✓[/green] Specification: {kme_root_info.get('specification', 'unknown')}")
-            console.print(f"[green]✓[/green] Message: {kme_root_info.get('message', 'unknown')}")
-            console.print(f"[green]✓[/green] Documentation: {kme_root_info.get('docs', 'unknown')}")
-            console.print(f"[green]✓[/green] Health Timestamp: {kme_health.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
-            
         except Exception as e:
             progress.update(task, completed=True)
             console.print(f"[red]✗[/red] Error checking health: {e}")
@@ -709,7 +703,7 @@ def reset_keys(confirm):
             key_service._load_keys()
             
             progress.update(task, completed=True)
-            console.print(f"[green]✓[/green] Successfully reset key database")
+            console.print("[green]✓[/green] Successfully reset key database")
             console.print(f"[green]✓[/green] Deleted {key_count} keys")
             
         except Exception as e:
@@ -880,16 +874,16 @@ def check_key_file():
     key_file_path = Path(config.storage_path)
     
     if not key_file_path.exists():
-        console.print(f"[red]✗ ERROR: Key file not found![/red]")
+        console.print("[red]✗ ERROR: Key file not found![/red]")
         console.print(f"[red]  Expected file: {key_file_path.absolute()}[/red]")
         console.print(f"[red]  Storage backend: {config.storage_backend}[/red]")
         
         if config.storage_backend.lower() == "json":
-            console.print(f"[red]  Expected format: JSON file with 'keys' object[/red]")
-            console.print(f"[red]  Example format: {{\"keys\": {{}}}}[/red]")
+            console.print("[red]  Expected format: JSON file with 'keys' object[/red]")
+            console.print("[red]  Example format: {\"keys\": {}}[/red]")
         elif config.storage_backend.lower() == "sqlite":
-            console.print(f"[red]  Expected format: SQLite database file[/red]")
-            console.print(f"[red]  Database will be created automatically if it doesn't exist[/red]")
+            console.print("[red]  Expected format: SQLite database file[/red]")
+            console.print("[red]  Database will be created automatically if it doesn't exist[/red]")
         
         console.print(f"[red]  Configuration source: {config_manager.config_file}[/red]")
         console.print(f"[red]  Storage path setting: SAE_STORAGE_PATH={config.storage_path}[/red]")
@@ -903,7 +897,7 @@ def check_key_file():
                 json.load(f)  # Test if it's valid JSON
         console.print(f"[green]✓[/green] Key file found and accessible: {key_file_path.absolute()}")
     except (json.JSONDecodeError, PermissionError) as e:
-        console.print(f"[red]✗ ERROR: Key file is corrupted or not accessible![/red]")
+        console.print("[red]✗ ERROR: Key file is corrupted or not accessible![/red]")
         console.print(f"[red]  File: {key_file_path.absolute()}[/red]")
         console.print(f"[red]  Error: {e}[/red]")
         raise
@@ -1129,7 +1123,7 @@ def handle_show_health():
         print_status(sae_status)
         
         # Show KME server information
-        console.print(f"\n[bold blue]KME Server Information[/bold blue]")
+        console.print("\n[bold blue]KME Server Information[/bold blue]")
         console.print(f"[green]✓[/green] Status: {kme_health.status}")
         console.print(f"[green]✓[/green] Version: {kme_root_info.get('version', 'unknown')}")
         console.print(f"[green]✓[/green] Specification: {kme_root_info.get('specification', 'unknown')}")
@@ -1621,10 +1615,10 @@ def handle_key_reset(args):
                 if storage_service.reset_database():
                     # Reload keys in memory
                     key_service._load_keys()
-                    console.print(f"[green]✓[/green] Successfully reset key database")
+                    console.print("[green]✓[/green] Successfully reset key database")
                     console.print(f"[green]✓[/green] Deleted {key_count} keys")
                 else:
-                    console.print(f"[red]✗[/red] Failed to reset key database")
+                    console.print("[red]✗[/red] Failed to reset key database")
             except Exception as e:
                 console.print(f"[red]✗[/red] Error resetting key database: {e}")
         else:
@@ -1639,7 +1633,7 @@ def handle_key_reset(args):
             try:
                 from src.services.key_service import key_service
                 # TODO: Implement single key deletion
-                console.print(f"[yellow]Single key deletion not yet implemented[/yellow]")
+                console.print("[yellow]Single key deletion not yet implemented[/yellow]")
             except Exception as e:
                 console.print(f"[red]✗[/red] Error deleting key: {e}")
         else:
@@ -1710,7 +1704,7 @@ def handle_key_notify(args):
                 grace_period = persona_instance.get_grace_period()
                 
                 if config_manager.config.debug_mode:
-                    console.print(f"[blue]DEBUG:[/blue] Using persona timing configuration")
+                    console.print("[blue]DEBUG:[/blue] Using persona timing configuration")
                     console.print(f"[blue]DEBUG:[/blue] Persona: {persona_name}")
                     console.print(f"[blue]DEBUG:[/blue] Initial roll delay: {initial_delay} seconds")
                     console.print(f"[blue]DEBUG:[/blue] Grace period: {grace_period} seconds")
@@ -1718,7 +1712,7 @@ def handle_key_notify(args):
                 # Fallback to default timing
                 rotation_timestamp = int(time.time()) + 300  # 5 minutes
                 if config_manager.config.debug_mode:
-                    console.print(f"[blue]DEBUG:[/blue] Persona not found, using default timing")
+                    console.print("[blue]DEBUG:[/blue] Persona not found, using default timing")
         except Exception as e:
             # Fallback to default timing
             rotation_timestamp = int(time.time()) + 300  # 5 minutes
@@ -1765,7 +1759,7 @@ def handle_key_notify(args):
             
             # Debug logging for session creation
             if config_manager.config.debug_mode:
-                console.print(f"[blue]DEBUG:[/blue] Creating master session for tracking")
+                console.print("[blue]DEBUG:[/blue] Creating master session for tracking")
                 console.print(f"[blue]DEBUG:[/blue] Session ID: {session_id}")
                 console.print(f"[blue]DEBUG:[/blue] Message ID: {message_id}")
                 console.print(f"[blue]DEBUG:[/blue] Session ID Length: {len(session_id)}")
@@ -1788,9 +1782,9 @@ def handle_key_notify(args):
             
             # Debug logging for successful send
             if config_manager.config.debug_mode:
-                console.print(f"[blue]DEBUG:[/blue] UDP message sent successfully")
-                console.print(f"[blue]DEBUG:[/blue] Key notification sent - slave will respond with acknowledgment")
-                console.print(f"[blue]DEBUG:[/blue] Master session created - waiting for acknowledgment")
+                console.print("[blue]DEBUG:[/blue] UDP message sent successfully")
+                console.print("[blue]DEBUG:[/blue] Key notification sent - slave will respond with acknowledgment")
+                console.print("[blue]DEBUG:[/blue] Master session created - waiting for acknowledgment")
         else:
             console.print(f"[red]✗[/red] Failed to notify slave {slave_id}")
             console.print(f"[red]✗[/red] UDP send failed to {slave_host}:{slave_port}")
@@ -1799,7 +1793,7 @@ def handle_key_notify(args):
         console.print(f"[red]✗[/red] Error notifying slave: {e}")
         if config_manager.config.debug_mode:
             import traceback
-            console.print(f"[blue]DEBUG:[/blue] Full error traceback:")
+            console.print("[blue]DEBUG:[/blue] Full error traceback:")
             console.print(traceback.format_exc())
 
 
