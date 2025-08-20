@@ -668,12 +668,47 @@ class UDPService:
                 self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
                 self.logger.info(f"  Selected Key ID: {message.key_ids[0] if message.key_ids else 'None'}")
             
+            # Check if we need more time for key roll using persona timing
+            suggested_timestamp = None
+            status = "ready"
+            
+            try:
+                from src.personas.base_persona import persona_manager
+                from src.config import config
+                
+                persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+                persona_instance = persona_manager.load_persona(persona_name)
+                
+                if persona_instance:
+                    # Check if the proposed rotation time gives us enough grace period
+                    current_time = int(time.time())
+                    time_until_rotation = message.rotation_timestamp - current_time
+                    grace_period = persona_instance.get_grace_period()
+                    
+                    if time_until_rotation < grace_period:
+                        # We need more time, suggest a later timestamp
+                        suggested_timestamp = persona_instance.calculate_suggested_timestamp(message.rotation_timestamp)
+                        status = "need_more_time"
+                        
+                        if self.config.debug_mode:
+                            self.logger.info(f"SYNC TIMING ADJUSTMENT:")
+                            self.logger.info(f"  Proposed rotation time: {time.ctime(message.rotation_timestamp)}")
+                            self.logger.info(f"  Time until rotation: {time_until_rotation} seconds")
+                            self.logger.info(f"  Grace period needed: {grace_period} seconds")
+                            self.logger.info(f"  Suggested new time: {time.ctime(suggested_timestamp)}")
+                            self.logger.info(f"  Status: {status}")
+            except Exception as e:
+                if self.config.debug_mode:
+                    self.logger.warning(f"Could not check persona timing constraints: {e}")
+            
             # Create acknowledgment message
             ack_message = message_signer.create_key_acknowledgment(
                 original_message_id=message.message_id,
                 master_sae_id=message.master_sae_id,
                 slave_sae_id=message.slave_sae_id,
-                selected_key_id=message.key_ids[0] if message.key_ids else None
+                selected_key_id=message.key_ids[0] if message.key_ids else None,
+                status=status,
+                suggested_rotation_timestamp=suggested_timestamp
             )
             
             # Look up master's configured address instead of using source address

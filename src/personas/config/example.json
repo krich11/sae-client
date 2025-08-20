@@ -8,6 +8,8 @@
     "rollback_on_failure": true,
     "advance_warning_seconds": 30,
     "cleanup_delay_seconds": 60,
+    "initial_roll_delay_seconds": 300,
+    "grace_period_seconds": 120,
     "validate_key_before_rotation": true,
     "validate_device_after_rotation": true,
     "notification_url": "https://webhook.example.com/status",

@@ -95,6 +95,78 @@ class BasePersona(ABC):
         
         pass
     
+    def get_initial_roll_delay(self) -> int:
+        """
+        Get the initial roll delay in seconds.
+        
+        This is the delay proposed in the timestamp sent in the first message.
+        It represents how far in the future the key roll should be scheduled.
+        
+        Returns:
+            int: Initial roll delay in seconds (default: 300 seconds / 5 minutes)
+        """
+        return self.config.get('initial_roll_delay_seconds', 300)
+    
+    def get_grace_period(self) -> int:
+        """
+        Get the grace period in seconds.
+        
+        This is the rough amount of time "required" to perform a key roll.
+        It can be used in either the second or third messages and represents
+        the minimum threshold of time needed to complete pre-configure and keyroll.
+        
+        Returns:
+            int: Grace period in seconds (default: 120 seconds / 2 minutes)
+        """
+        return self.config.get('grace_period_seconds', 120)
+    
+    def calculate_rotation_timestamp(self, base_time: Optional[int] = None) -> int:
+        """
+        Calculate the rotation timestamp based on initial roll delay.
+        
+        Args:
+            base_time: Base time in seconds since epoch (default: current time)
+            
+        Returns:
+            int: Rotation timestamp in seconds since epoch
+        """
+        if base_time is None:
+            import time
+            base_time = int(time.time())
+        
+        return base_time + self.get_initial_roll_delay()
+    
+    def calculate_suggested_timestamp(self, original_timestamp: int) -> int:
+        """
+        Calculate a suggested rotation timestamp based on grace period.
+        
+        This is used when a device needs more time than originally proposed.
+        
+        Args:
+            original_timestamp: Original proposed rotation timestamp
+            
+        Returns:
+            int: Suggested rotation timestamp with grace period added
+        """
+        return original_timestamp + self.get_grace_period()
+    
+    def validate_timing_constraints(self, proposed_timestamp: int) -> bool:
+        """
+        Validate if a proposed rotation timestamp meets timing constraints.
+        
+        Args:
+            proposed_timestamp: Proposed rotation timestamp in seconds since epoch
+            
+        Returns:
+            bool: True if timing constraints are met
+        """
+        import time
+        current_time = int(time.time())
+        min_delay = self.get_grace_period()
+        
+        time_until_rotation = proposed_timestamp - current_time
+        return time_until_rotation >= min_delay
+    
     @abstractmethod
     def rotate_key(self, context: RotationContext) -> bool:
         """

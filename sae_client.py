@@ -1697,8 +1697,33 @@ def handle_key_notify(args):
         if config_manager.config.debug_mode:
             console.print(f"[blue]DEBUG:[/blue] Found slave {slave_id} in known peers: {slave_host}:{slave_port}")
         
-        # Calculate rotation timestamp (5 minutes in the future)
-        rotation_timestamp = int(time.time()) + 300  # 5 minutes
+        # Get persona timing configuration
+        try:
+            from src.personas.base_persona import persona_manager
+            persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+            persona_instance = persona_manager.load_persona(persona_name)
+            
+            if persona_instance:
+                # Use persona's initial roll delay
+                rotation_timestamp = persona_instance.calculate_rotation_timestamp()
+                initial_delay = persona_instance.get_initial_roll_delay()
+                grace_period = persona_instance.get_grace_period()
+                
+                if config_manager.config.debug_mode:
+                    console.print(f"[blue]DEBUG:[/blue] Using persona timing configuration")
+                    console.print(f"[blue]DEBUG:[/blue] Persona: {persona_name}")
+                    console.print(f"[blue]DEBUG:[/blue] Initial roll delay: {initial_delay} seconds")
+                    console.print(f"[blue]DEBUG:[/blue] Grace period: {grace_period} seconds")
+            else:
+                # Fallback to default timing
+                rotation_timestamp = int(time.time()) + 300  # 5 minutes
+                if config_manager.config.debug_mode:
+                    console.print(f"[blue]DEBUG:[/blue] Persona not found, using default timing")
+        except Exception as e:
+            # Fallback to default timing
+            rotation_timestamp = int(time.time()) + 300  # 5 minutes
+            if config_manager.config.debug_mode:
+                console.print(f"[blue]DEBUG:[/blue] Error loading persona, using default timing: {e}")
         
         # Debug logging for timestamp calculation
         if config_manager.config.debug_mode:
@@ -1977,10 +2002,13 @@ def handle_persona_roll_key(args):
         
         console.print(f"[blue]Rolling key with persona: {persona_name}[/blue]")
         
+        # Create rotation context using persona timing
+        rotation_timestamp = persona_instance.calculate_rotation_timestamp()
+        
         # Create rotation context
         rotation_context = RotationContext(
             key_id=key_id,
-            rotation_timestamp=int(time.time()) + 60,  # 1 minute from now
+            rotation_timestamp=rotation_timestamp,
             device_interface="eth0",
             encryption_algorithm="AES-256",
             key_priority="normal",
@@ -2043,6 +2071,37 @@ def handle_persona_status(args):
                 table.add_row(key, str(value))
         
         console.print(table)
+        
+        # Display timing configuration
+        console.print(f"\n[bold blue]Timing Configuration - {persona_name}[/bold blue]")
+        timing_table = Table(title="Key Roll Timing Settings")
+        timing_table.add_column("Setting", style="cyan")
+        timing_table.add_column("Value", style="green")
+        timing_table.add_column("Description", style="yellow")
+        
+        initial_delay = persona_instance.get_initial_roll_delay()
+        grace_period = persona_instance.get_grace_period()
+        
+        timing_table.add_row(
+            "Initial Roll Delay", 
+            f"{initial_delay} seconds ({initial_delay/60:.1f} minutes)", 
+            "Delay proposed in first message"
+        )
+        timing_table.add_row(
+            "Grace Period", 
+            f"{grace_period} seconds ({grace_period/60:.1f} minutes)", 
+            "Minimum time required for key roll"
+        )
+        
+        # Show next rotation timestamp
+        next_rotation = persona_instance.calculate_rotation_timestamp()
+        timing_table.add_row(
+            "Next Rotation Time", 
+            f"{time.ctime(next_rotation)}", 
+            "If rotation was scheduled now"
+        )
+        
+        console.print(timing_table)
         
     except Exception as e:
         console.print(f"[red]✗[/red] Error getting persona status: {e}")
