@@ -915,8 +915,9 @@ class UDPService:
     def _execute_device_rotation(self, message):
         """Execute device-specific key rotation using persona plugin."""
         try:
-            # Load persona plugin
-            persona_name = self.sync_config.device_persona
+            # Load persona plugin using main configuration, not sync_config
+            from src.config import config_manager
+            persona_name = config_manager.config.device_persona
             persona = self._load_persona_plugin(persona_name)
             
             if persona:
