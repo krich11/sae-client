@@ -1013,7 +1013,7 @@ class UDPService:
         except Exception as e:
             self.logger.error(f"Error marking notified keys as ASSIGNED: {e}")
     
-    def _notify_master_rotation_completed(self, message, new_key_id, addr):
+    def _notify_master_rotation_completed(self, message, new_key_id):
         """Notify master that key rotation completed successfully."""
         try:
             from ..utils.message_signer import message_signer
@@ -1035,7 +1035,6 @@ class UDPService:
                 self.logger.info(f"  New Key ID: {new_key_id}")
                 self.logger.info(f"  Master SAE: {message.master_sae_id}")
                 self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
-                self.logger.info(f"  Target Address: {addr[0]}:{addr[1]}")
             
             # Look up master's configured address
             from .sae_peers import sae_peers
@@ -1631,7 +1630,7 @@ class UDPService:
                     
                     # Step 3: Notify master that rotation completed successfully
                     self.logger.info("Key rotation completed successfully - notifying master")
-                    self._notify_master_rotation_completed(message, actual_key_id, addr)
+                    self._notify_master_rotation_completed(message, actual_key_id)
                 else:
                     self.logger.error(f"Key rotation failed using {persona_name} persona")
             else:
