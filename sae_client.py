@@ -61,7 +61,10 @@ COMMAND_HIERARCHY = {
         'notify': {'<sae_id>': {}}
     },
     'persona': {
-        'test': {'<persona_name>': {}}
+        'test': {'<persona_name>': {}},
+        'pre-configure': {'<persona_name>': {'<key_id>': {}}},
+        'delete-ppk': {'<persona_name>': {'<ppk_id>': {}}},
+        'status': {'<persona_name>': {}}
     },
     'peer': {
         'add': {'<sae_id>': {'<host>': {'<port>': {'[roles <roles>]': {'[description <desc>]': {}}}}}},
@@ -912,7 +915,10 @@ def show_help():
   key notify <sae_id>           - Notify a slave SAE of available key
 
 [bold cyan]Persona Commands:[/bold cyan]
-  persona test <persona_name>   - Test a device persona
+      persona test <persona_name>   - Test a device persona
+    persona pre-configure <persona_name> <key_id> - Pre-configure a key
+    persona delete-ppk <persona_name> <ppk_id> - Delete a specific PPK
+    persona status <persona_name> - Get detailed device status
 
 [bold cyan]Peer Commands:[/bold cyan]
   peer add <sae_id> <host> <port> [roles <roles>] [description <desc>]
@@ -1690,8 +1696,15 @@ def handle_persona(args):
     
     if subcommand == 'test':
         handle_persona_test(args[1:])
+    elif subcommand == 'pre-configure':
+        handle_persona_pre_configure(args[1:])
+    elif subcommand == 'delete-ppk':
+        handle_persona_delete_ppk(args[1:])
+    elif subcommand == 'status':
+        handle_persona_status(args[1:])
     else:
         console.print(f"[yellow]Unknown persona subcommand: {subcommand}[/yellow]")
+        console.print("[yellow]Available subcommands: test, pre-configure, delete-ppk, status[/yellow]")
 
 
 def handle_persona_test(args):
@@ -1733,6 +1746,128 @@ def handle_persona_test(args):
         
     except Exception as e:
         console.print(f"[red]✗[/red] Error testing persona: {e}")
+
+
+def handle_persona_pre_configure(args):
+    """Handle persona pre-configure command."""
+    if len(args) < 2:
+        console.print("[yellow]Usage: persona pre-configure <persona_name> <key_id>[/yellow]")
+        return
+    
+    persona_name = args[0]
+    key_id = args[1]
+    
+    try:
+        from src.personas.base_persona import persona_manager, PreConfigureContext
+        
+        # Load persona
+        persona_instance = persona_manager.load_persona(persona_name)
+        
+        if not persona_instance:
+            console.print(f"[red]✗[/red] Failed to load persona: {persona_name}")
+            return
+        
+        console.print(f"[blue]Pre-configuring key with persona: {persona_name}[/blue]")
+        
+        # Create test key material (32 bytes, base64 encoded)
+        import base64
+        test_key_material = base64.b64encode(b"test-key-material-for-aos8-aligned").decode()
+        
+        # Create pre-configure context
+        context = PreConfigureContext(
+            key_id=key_id,
+            key_material=test_key_material,
+            device_interface="eth0",
+            encryption_algorithm="AES-256",
+            key_priority="normal"
+        )
+        
+        # Execute pre-configure
+        success = persona_instance.pre_configure_key(context)
+        
+        if success:
+            console.print(f"[green]✓[/green] Successfully pre-configured key {key_id}")
+        else:
+            console.print(f"[red]✗[/red] Failed to pre-configure key {key_id}")
+        
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error pre-configuring key: {e}")
+
+
+def handle_persona_delete_ppk(args):
+    """Handle persona delete-ppk command."""
+    if len(args) < 2:
+        console.print("[yellow]Usage: persona delete-ppk <persona_name> <ppk_id>[/yellow]")
+        return
+    
+    persona_name = args[0]
+    ppk_id = args[1]
+    
+    try:
+        from src.personas.base_persona import persona_manager
+        
+        # Load persona
+        persona_instance = persona_manager.load_persona(persona_name)
+        
+        if not persona_instance:
+            console.print(f"[red]✗[/red] Failed to load persona: {persona_name}")
+            return
+        
+        console.print(f"[blue]Deleting PPK with persona: {persona_name}[/blue]")
+        
+        # Check if persona has delete_ppk method
+        if hasattr(persona_instance, 'delete_ppk'):
+            success = persona_instance.delete_ppk(ppk_id)
+            
+            if success:
+                console.print(f"[green]✓[/green] Successfully deleted PPK {ppk_id}")
+            else:
+                console.print(f"[red]✗[/red] Failed to delete PPK {ppk_id}")
+        else:
+            console.print(f"[yellow]Persona {persona_name} does not support PPK deletion[/yellow]")
+        
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error deleting PPK: {e}")
+
+
+def handle_persona_status(args):
+    """Handle persona status command."""
+    if len(args) < 1:
+        console.print("[yellow]Usage: persona status <persona_name>[/yellow]")
+        return
+    
+    persona_name = args[0]
+    
+    try:
+        from src.personas.base_persona import persona_manager
+        
+        # Load persona
+        persona_instance = persona_manager.load_persona(persona_name)
+        
+        if not persona_instance:
+            console.print(f"[red]✗[/red] Failed to load persona: {persona_name}")
+            return
+        
+        console.print(f"[blue]Getting status for persona: {persona_name}[/blue]")
+        
+        # Get detailed status
+        status = persona_instance.get_device_status()
+        
+        from rich.table import Table
+        table = Table(title=f"Device Status - {persona_name}")
+        table.add_column("Property", style="cyan")
+        table.add_column("Value", style="green")
+        
+        for key, value in status.items():
+            if isinstance(value, dict):
+                table.add_row(key, str(value)[:100] + "..." if len(str(value)) > 100 else str(value))
+            else:
+                table.add_row(key, str(value))
+        
+        console.print(table)
+        
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error getting persona status: {e}")
 
 
 def handle_peer(args):
