@@ -235,6 +235,9 @@ class MessageSigner:
             elif message_type == 'cleanup_acknowledgment':
                 from ..models.sync_models import CleanupAcknowledgmentMessage
                 message = CleanupAcknowledgmentMessage(**message_data)
+            elif message_type == 'rotation_completed':
+                from ..models.sync_models import RotationCompletedMessage
+                message = RotationCompletedMessage(**message_data)
             elif message_type == 'error':
                 from ..models.sync_models import ErrorMessage
                 message = ErrorMessage(**message_data)
@@ -487,6 +490,35 @@ class MessageSigner:
         )
         
         return self.sign_message(message, master_sae_id)
+    
+    def create_rotation_completed(self, original_message_id: str,
+                                new_key_id: str,
+                                rotation_timestamp: int,
+                                master_sae_id: str, slave_sae_id: str) -> SignedMessage:
+        """
+        Create a signed rotation completed message.
+        
+        Args:
+            original_message_id: ID of the original key notification message
+            new_key_id: ID of the newly rotated key
+            rotation_timestamp: Timestamp when rotation was completed
+            master_sae_id: Master SAE ID
+            slave_sae_id: Slave SAE ID
+            
+        Returns:
+            SignedMessage: The signed rotation completed message
+        """
+        from ..models.sync_models import RotationCompletedMessage
+        
+        message = RotationCompletedMessage(
+            original_message_id=original_message_id,
+            new_key_id=new_key_id,
+            rotation_timestamp=rotation_timestamp,
+            master_sae_id=master_sae_id,
+            slave_sae_id=slave_sae_id
+        )
+        
+        return self.sign_message(message, slave_sae_id)
     
     def create_cleanup_status_request(self, original_message_id: str,
                                     new_key_id: str,

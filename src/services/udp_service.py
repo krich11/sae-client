@@ -49,6 +49,7 @@ class UDPService:
         self.register_handler(MessageType.CLEANUP_DELETE_REQUEST, self._handle_cleanup_delete_request)
         self.register_handler(MessageType.CLEANUP_DELETE_RESPONSE, self._handle_cleanup_delete_response)
         self.register_handler(MessageType.CLEANUP_ACKNOWLEDGMENT, self._handle_cleanup_acknowledgment)
+        self.register_handler(MessageType.ROTATION_COMPLETED, self._handle_rotation_completed)
         self.register_handler(MessageType.ERROR, self._handle_error_message)
     
     def register_handler(self, message_type: MessageType, handler: Callable):
@@ -715,13 +716,13 @@ class UDPService:
         
         # Handle based on status
         if message.status == "success":
-            # Service is healthy, proceed with cleanup
-            self.logger.info("Service status check successful, proceeding with cleanup")
-            self._initiate_cleanup_deletion(message.original_message_id, message.master_sae_id, message.slave_sae_id, addr)
+            # Service is healthy, acknowledge agreement
+            self.logger.info("Service status check successful, acknowledging agreement")
+            self._send_cleanup_acknowledgment(message, "completed", addr)
         else:
-            # Service failed, initiate rollback
-            self.logger.error("Service status check failed, initiating rollback")
-            self._initiate_rollback(message.original_message_id, message.master_sae_id, message.slave_sae_id, addr)
+            # Service failed, acknowledge failure
+            self.logger.error("Service status check failed, acknowledging failure")
+            self._send_cleanup_acknowledgment(message, "failed", addr)
     
     def _handle_cleanup_delete_request(self, message: BaseSyncMessage, addr: tuple):
         """Handle cleanup delete request message from master."""
@@ -866,11 +867,61 @@ class UDPService:
                 "Address": f"{addr[0]}:{addr[1]}"
             })
         
-        # Cleanup protocol completed
+        # Cleanup protocol completed - now perform actual cleanup
         if message.status == "completed":
-            self.logger.info("Cleanup protocol completed successfully")
+            self.logger.info("Cleanup protocol completed successfully - performing key cleanup")
+            self._perform_key_cleanup(message.original_message_id)
         else:
-            self.logger.warning("Cleanup protocol completed with failures")
+            self.logger.warning("Cleanup protocol completed with failures - no cleanup performed")
+    
+    def _handle_rotation_completed(self, message: BaseSyncMessage, addr: tuple):
+        """Handle rotation completed message from slave."""
+        from ..models.sync_models import RotationCompletedMessage
+        
+        if not isinstance(message, RotationCompletedMessage):
+            self.logger.error("Invalid message type for rotation completed handler")
+            return
+        
+        # Debug logging for rotation completed message
+        if self.config.debug_mode:
+            self.logger.info(f"ROTATION COMPLETED RECEIVED:")
+            self.logger.info(f"  Master SAE: {message.master_sae_id}")
+            self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+            self.logger.info(f"  Original Message ID: {message.original_message_id}")
+            self.logger.info(f"  New Key ID: {message.new_key_id}")
+            self.logger.info(f"  Rotation Timestamp: {message.rotation_timestamp}")
+            self.logger.info(f"  Rotation Time: {time.ctime(message.rotation_timestamp)}")
+        
+        self.logger.info(f"Received rotation completed notification from {message.slave_sae_id}")
+        self.logger.info(f"New key {message.new_key_id} successfully rotated")
+        
+        # Console notification for interactive mode
+        if self.config.debug_mode:
+            self._print_console_notification("ROTATION COMPLETED", {
+                "From": message.slave_sae_id,
+                "To": message.master_sae_id,
+                "New Key ID": message.new_key_id,
+                "Rotation Time": time.ctime(message.rotation_timestamp),
+                "Original Message": message.original_message_id[:8] + "...",
+                "Signature": "✓ VALID",
+                "Address": f"{addr[0]}:{addr[1]}"
+            })
+        
+        # Master initiates cleanup protocol after receiving rotation completion
+        self.logger.info("Initiating cleanup protocol after receiving rotation completion")
+        
+        # Get slave connection details from the message source address
+        slave_host = addr[0]
+        slave_port = addr[1]
+        
+        # Initiate cleanup protocol
+        self.initiate_cleanup_protocol(
+            original_message_id=message.original_message_id,
+            new_key_id=message.new_key_id,
+            slave_sae_id=message.slave_sae_id,
+            slave_host=slave_host,
+            slave_port=slave_port
+        )
     
     def _handle_error_message(self, message: BaseSyncMessage, addr: tuple):
         """Handle error message."""
@@ -961,6 +1012,51 @@ class UDPService:
             
         except Exception as e:
             self.logger.error(f"Error marking notified keys as ASSIGNED: {e}")
+    
+    def _notify_master_rotation_completed(self, message, new_key_id, addr):
+        """Notify master that key rotation completed successfully."""
+        try:
+            from ..utils.message_signer import message_signer
+            import time
+            
+            # Create rotation completed message
+            rotation_completed = message_signer.create_rotation_completed(
+                original_message_id=message.original_message_id,
+                new_key_id=new_key_id,
+                rotation_timestamp=int(time.time()),
+                master_sae_id=message.master_sae_id,
+                slave_sae_id=message.slave_sae_id
+            )
+            
+            # Debug logging for rotation completed message
+            if self.config.debug_mode:
+                self.logger.info(f"ROTATION COMPLETED MESSAGE CREATION:")
+                self.logger.info(f"  Original Message ID: {message.original_message_id}")
+                self.logger.info(f"  New Key ID: {new_key_id}")
+                self.logger.info(f"  Master SAE: {message.master_sae_id}")
+                self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+                self.logger.info(f"  Target Address: {addr[0]}:{addr[1]}")
+            
+            # Look up master's configured address
+            from .sae_peers import sae_peers
+            master_address = sae_peers.get_peer_address(message.master_sae_id)
+            
+            if not master_address:
+                self.logger.error(f"Master {message.master_sae_id} not found in known peers")
+                return
+            
+            master_host, master_port = master_address
+            
+            # Send rotation completed message to master
+            success = self.send_message(rotation_completed, master_host, master_port)
+            
+            if success:
+                self.logger.info("Sent rotation completed notification to master")
+            else:
+                self.logger.error("Failed to send rotation completed notification to master")
+                
+        except Exception as e:
+            self.logger.error(f"Error notifying master of rotation completion: {e}")
     
     def _send_key_acknowledgment(self, message, addr):
         """Send key acknowledgment message."""
@@ -1376,6 +1472,63 @@ class UDPService:
         except Exception as e:
             self.logger.error(f"Error initiating rollback: {e}")
     
+    def _perform_key_cleanup(self, original_message_id):
+        """Perform actual key cleanup after protocol acknowledgment."""
+        try:
+            from ..services.key_service import key_service
+            
+            # Get old keys that need to be deleted
+            old_keys = key_service.get_rolled_keys()
+            old_key_ids = [key.key_id for key in old_keys]
+            
+            if not old_key_ids:
+                self.logger.info("No old keys to clean up")
+                return
+            
+            self.logger.info(f"Performing cleanup of {len(old_key_ids)} old keys: {old_key_ids}")
+            
+            # Load configured persona for device-specific cleanup
+            persona = self._load_persona_plugin("configured")
+            if persona:
+                deleted_count = 0
+                failed_count = 0
+                
+                for key_id in old_key_ids:
+                    try:
+                        if hasattr(persona, 'delete_key'):
+                            if persona.delete_key(key_id):
+                                deleted_count += 1
+                                self.logger.info(f"Successfully deleted key from device: {key_id}")
+                            else:
+                                failed_count += 1
+                                self.logger.warning(f"Failed to delete key from device: {key_id}")
+                        else:
+                            # Default success if no delete method available
+                            deleted_count += 1
+                            self.logger.info(f"Key deletion simulated for device: {key_id}")
+                    except Exception as e:
+                        failed_count += 1
+                        self.logger.error(f"Error deleting key {key_id} from device: {e}")
+                
+                self.logger.info(f"Device cleanup completed: {deleted_count} deleted, {failed_count} failed")
+            
+            # Also clean up from local storage
+            local_deleted_count = 0
+            for key_id in old_key_ids:
+                try:
+                    if key_service.delete_key(key_id):
+                        local_deleted_count += 1
+                        self.logger.info(f"Successfully deleted key from local storage: {key_id}")
+                    else:
+                        self.logger.warning(f"Failed to delete key from local storage: {key_id}")
+                except Exception as e:
+                    self.logger.error(f"Error deleting key {key_id} from local storage: {e}")
+            
+            self.logger.info(f"Local storage cleanup completed: {local_deleted_count} keys deleted")
+            
+        except Exception as e:
+            self.logger.error(f"Error performing key cleanup: {e}")
+    
     def initiate_cleanup_protocol(self, original_message_id, new_key_id, slave_sae_id, slave_host, slave_port):
         """Initiate the cleanup protocol after successful key rotation."""
         try:
@@ -1472,27 +1625,9 @@ class UDPService:
                             key_service.mark_key_rolled(old_key.key_id, actual_key_id)
                             self.logger.info(f"Marked old key {old_key.key_id} as rolled (replaced by {actual_key_id})")
                     
-                    # Step 3: Initiate cleanup protocol to verify service status and delete old keys
-                    self.logger.info("Initiating cleanup protocol after successful rotation")
-                    
-                    # Get slave connection details from session
-                    slave_host = "127.0.0.1"  # Default localhost
-                    slave_port = self.sync_config.udp_port  # Default UDP port
-                    
-                    # Try to get slave details from session metadata if available
-                    if session and hasattr(session, 'slave_host'):
-                        slave_host = session.slave_host
-                    if session and hasattr(session, 'slave_port'):
-                        slave_port = session.slave_port
-                    
-                    # Initiate cleanup protocol
-                    self.initiate_cleanup_protocol(
-                        original_message_id=message.original_message_id,
-                        new_key_id=actual_key_id,
-                        slave_sae_id=message.slave_sae_id,
-                        slave_host=slave_host,
-                        slave_port=slave_port
-                    )
+                    # Step 3: Notify master that rotation completed successfully
+                    self.logger.info("Key rotation completed successfully - notifying master")
+                    self._notify_master_rotation_completed(message, actual_key_id, addr)
                 else:
                     self.logger.error(f"Key rotation failed using {persona_name} persona")
             else:

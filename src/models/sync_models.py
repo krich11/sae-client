@@ -20,6 +20,7 @@ class MessageType(str, Enum):
     CLEANUP_DELETE_REQUEST = "cleanup_delete_request"
     CLEANUP_DELETE_RESPONSE = "cleanup_delete_response"
     CLEANUP_ACKNOWLEDGMENT = "cleanup_acknowledgment"
+    ROTATION_COMPLETED = "rotation_completed"
     ERROR = "error"
 
 
@@ -246,6 +247,40 @@ class CleanupDeleteResponseMessage(BaseSyncMessage):
         """Validate status is valid."""
         if v not in ['success', 'failed']:
             raise ValueError('status must be either "success" or "failed"')
+        return v
+
+
+class RotationCompletedMessage(BaseSyncMessage):
+    """Message sent by slave SAE to notify master that key rotation completed successfully."""
+    message_type: MessageType = MessageType.ROTATION_COMPLETED
+    original_message_id: str = Field(..., description="ID of the original key notification message")
+    new_key_id: str = Field(..., description="ID of the newly rotated key")
+    rotation_timestamp: int = Field(..., description="Timestamp when rotation was completed")
+    
+    @validator('original_message_id')
+    def validate_original_message_id(cls, v):
+        """Validate original message ID is a valid UUID."""
+        try:
+            uuid.UUID(v)
+            return v
+        except ValueError:
+            raise ValueError('original_message_id must be a valid UUID')
+    
+    @validator('new_key_id')
+    def validate_new_key_id(cls, v):
+        """Validate new key ID is not empty."""
+        if not v.strip():
+            raise ValueError('new_key_id cannot be empty')
+        return v
+    
+    @validator('rotation_timestamp')
+    def validate_rotation_timestamp(cls, v):
+        """Validate rotation timestamp is reasonable."""
+        current_time = int(datetime.now().timestamp())
+        if v < current_time - 3600:  # More than 1 hour ago
+            raise ValueError('rotation_timestamp is too old')
+        if v > current_time + 3600:  # More than 1 hour in future
+            raise ValueError('rotation_timestamp is too far in future')
         return v
 
 
