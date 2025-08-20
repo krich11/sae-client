@@ -841,7 +841,7 @@ class UDPService:
                 self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
                 self.logger.info(f"  Original Message ID: {message.original_message_id}")
                 self.logger.info(f"  Execution Time: {datetime.now()}")
-                self.logger.info(f"  Scheduled Time: {time.ctime(message.rotation_timestamp)}")
+                self.logger.info(f"  Scheduled Time: {time.ctime(message.final_rotation_timestamp)}")
             
             self.logger.info("Executing key rotation")
             
@@ -890,7 +890,7 @@ class UDPService:
                 
                 context = RotationContext(
                     key_id=message.original_message_id,
-                    rotation_timestamp=message.rotation_timestamp,
+                    rotation_timestamp=message.final_rotation_timestamp,
                     device_interface=self.sync_config.get('device_interface'),
                     encryption_algorithm=self.sync_config.get('encryption_algorithm', 'AES-256'),
                     key_priority=self.sync_config.get('key_priority', 'normal'),
