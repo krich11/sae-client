@@ -67,7 +67,8 @@ COMMAND_HIERARCHY = {
             '[all]': {},
             'keyid': {'<key_id>': {}}
         },
-        'notify': {'<sae_id>': {}}
+        'notify': {'<sae_id>': {}},
+        'rotate': {'<sae_id>': {}}
     },
     'persona': {
         'test': {'[persona_name]': {}},
@@ -1034,6 +1035,7 @@ def show_help():
   key reset [all | keyid <key_id>]
                                 - Reset key database (all keys or specific key)
   key notify <sae_id>           - Notify a slave SAE of available key
+  key rotate <sae_id>           - Request keys and notify slave (combined operation)
 
 [bold cyan]Persona Commands:[/bold cyan]
     persona test [persona_name]              - Test a device persona (uses configured if not specified)
@@ -1611,8 +1613,11 @@ def handle_key(args):
         handle_key_reset(args[1:])
     elif subcommand == 'notify':
         handle_key_notify(args[1:])
+    elif subcommand == 'rotate':
+        handle_key_rotate(args[1:])
     else:
         console.print(f"[yellow]Unknown key subcommand: {subcommand}[/yellow]")
+        console.print("Available subcommands: request, reset, notify, rotate")
 
 
 def handle_key_request(args):
@@ -1909,6 +1914,130 @@ def handle_key_notify(args):
             
     except Exception as e:
         console.print(f"[red]✗[/red] Error notifying slave: {e}")
+        if config_manager.config.debug_mode:
+            import traceback
+            console.print("[blue]DEBUG:[/blue] Full error traceback:")
+            console.print(traceback.format_exc())
+
+
+def handle_key_rotate(args):
+    """Handle key rotate command - combines key request and notify."""
+    if not args:
+        console.print("[yellow]Usage: key rotate <sae_id>[/yellow]")
+        return
+    
+    slave_id = args[0]
+    
+    console.print(f"[blue]Starting key rotation for slave {slave_id}...[/blue]")
+    
+    try:
+        # Step 1: Request encryption keys for the slave
+        console.print(f"[blue]Step 1: Requesting encryption keys for slave {slave_id}...[/blue]")
+        
+        from src.services.key_service import key_service
+        from src.models.api_models import KeyType
+        
+        response = key_service.request_keys_from_kme(
+            KeyType.ENCRYPTION, 
+            256,  # Default key size
+            1,    # Default quantity
+            slave_sae_id=slave_id
+        )
+        
+        console.print(f"[green]✓[/green] Successfully received and stored {len(response.keys)} keys")
+        
+        # Step 2: Notify the slave about the key
+        console.print(f"[blue]Step 2: Notifying slave {slave_id} about the key...[/blue]")
+        
+        # Get available keys for this slave
+        available_keys = key_service.get_available_keys(allowed_sae_id=slave_id)
+        
+        if not available_keys:
+            console.print(f"[red]✗[/red] No keys available for slave {slave_id} after request")
+            return
+        
+        # Use the first available key for this slave
+        key = available_keys[0]
+        
+        # Use UDP synchronization system for actual network communication
+        from src.services.udp_service import udp_service
+        from src.utils.message_signer import message_signer
+        from src.services.sae_peers import sae_peers
+        import time
+        
+        # Try to get slave address from known peers
+        peer_address = sae_peers.get_peer_address(slave_id)
+        if not peer_address:
+            console.print(f"[red]✗[/red] Slave {slave_id} not found in known peers")
+            console.print(f"[yellow]Use 'peer add' command to add {slave_id} to known peers first[/yellow]")
+            return
+        
+        slave_host, slave_port = peer_address
+        
+        # Get persona timing configuration
+        try:
+            from src.personas.base_persona import persona_manager
+            persona_name = config.device_persona
+            persona_instance = persona_manager.load_persona(persona_name)
+            
+            if persona_instance:
+                # Use persona's initial roll delay
+                rotation_timestamp = persona_instance.calculate_rotation_timestamp()
+            else:
+                # Fallback to default timing
+                rotation_timestamp = int(time.time()) + 300  # 5 minutes
+        except Exception as e:
+            # Fallback to default timing
+            rotation_timestamp = int(time.time()) + 300  # 5 minutes
+        
+        # Create key notification message
+        signed_message = message_signer.create_key_notification(
+            key_ids=[key.key_id],
+            rotation_timestamp=rotation_timestamp,
+            master_sae_id=config.sae_id,
+            slave_sae_id=slave_id
+        )
+        
+        # Send message via UDP
+        success = udp_service.send_message(signed_message, slave_host, slave_port)
+        
+        if success:
+            # Create session in state machine for tracking acknowledgment
+            from src.services.sync_state_machine import sync_state_machine
+            
+            # Extract message ID from the signed message
+            import base64
+            import json
+            payload_data = json.loads(base64.b64decode(signed_message.payload))
+            message_id = payload_data['message_id']
+            
+            # Create session ID
+            session_id = f"{config.sae_id}_{slave_id}_{message_id}"
+            
+            # Create session in state machine
+            sync_state_machine.create_session(
+                session_id=session_id,
+                master_sae_id=config.sae_id,
+                slave_sae_id=slave_id,
+                key_ids=[key.key_id],
+                rotation_timestamp=rotation_timestamp
+            )
+            
+            # Mark key as notified to this slave with rotation timestamp
+            key_service.mark_key_as_notified(key.key_id, slave_id, rotation_timestamp)
+            
+            console.print(f"[green]✓[/green] Successfully notified slave {slave_id}")
+            console.print(f"[green]✓[/green] Key ID: {key.key_id}")
+            console.print(f"[green]✓[/green] Rotation timestamp: {rotation_timestamp}")
+            console.print(f"[green]✓[/green] Rotation time: {time.ctime(rotation_timestamp)}")
+            console.print(f"[green]✓[/green] Sent to: {slave_host}:{slave_port}")
+            console.print(f"[green]✓[/green] Key rotation process completed successfully!")
+        else:
+            console.print(f"[red]✗[/red] Failed to notify slave {slave_id}")
+            console.print(f"[red]✗[/red] UDP send failed to {slave_host}:{slave_port}")
+            
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error during key rotation: {e}")
         if config_manager.config.debug_mode:
             import traceback
             console.print("[blue]DEBUG:[/blue] Full error traceback:")
