@@ -280,15 +280,28 @@ def print_keys(keys, title="Available Keys"):
         console.print("\n[bold yellow]DEBUG MODE - Full Key Details:[/bold yellow]")
         for key in keys:
             import hashlib
-            key_id_and_material = f"{key.key_id}{key.key_material}"
-            md5_hash = hashlib.md5(key_id_and_material.encode()).hexdigest()
             
-            console.print(f"\n[cyan]Key ID:[/cyan] {key.key_id}")
-            console.print(f"[green]Key Material:[/green] {key.key_material}")
-            console.print(f"[yellow]MD5 Hash (ID+Material):[/yellow] {md5_hash}")
-            console.print(f"[blue]Size:[/blue] {key.key_size} bits")
-            console.print(f"[magenta]Allowed SAE:[/magenta] {key.allowed_sae_id if hasattr(key, 'allowed_sae_id') and key.allowed_sae_id else 'N/A'}")
-            console.print("─" * 80)
+            # Check if this is an ETSI key or local key
+            if hasattr(key, 'key_ID'):
+                # ETSI key format
+                key_id_and_material = f"{key.key_ID}{key.key}"
+                md5_hash = hashlib.md5(key_id_and_material.encode()).hexdigest()
+                
+                console.print(f"\n[cyan]Key ID:[/cyan] {key.key_ID}")
+                console.print(f"[green]Key Material:[/green] {key.key}")
+                console.print(f"[yellow]MD5 Hash (ID+Material):[/yellow] {md5_hash}")
+                console.print("─" * 80)
+            else:
+                # Local key format
+                key_id_and_material = f"{key.key_id}{key.key_material}"
+                md5_hash = hashlib.md5(key_id_and_material.encode()).hexdigest()
+                
+                console.print(f"\n[cyan]Key ID:[/cyan] {key.key_id}")
+                console.print(f"[green]Key Material:[/green] {key.key_material}")
+                console.print(f"[yellow]MD5 Hash (ID+Material):[/yellow] {md5_hash}")
+                console.print(f"[blue]Size:[/blue] {key.key_size} bits")
+                console.print(f"[magenta]Allowed SAE:[/magenta] {key.allowed_sae_id if hasattr(key, 'allowed_sae_id') and key.allowed_sae_id else 'N/A'}")
+                console.print("─" * 80)
 
 
 @click.group(invoke_without_command=True)
