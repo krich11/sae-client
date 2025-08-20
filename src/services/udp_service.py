@@ -219,7 +219,7 @@ class UDPService:
                 self.logger.info(f"UDP MESSAGE TIMESTAMP: {message.timestamp}")
             
             # State machine validation
-            # For acknowledgments and sync confirmations, use the original_message_id to find the session
+            # For acknowledgments, sync confirmations, and rotation completed, use the original_message_id to find the session
             if message.message_type == MessageType.KEY_ACKNOWLEDGMENT:
                 from ..models.sync_models import KeyAcknowledgmentMessage
                 if isinstance(message, KeyAcknowledgmentMessage):
@@ -229,6 +229,12 @@ class UDPService:
             elif message.message_type == MessageType.SYNC_CONFIRMATION:
                 from ..models.sync_models import SyncConfirmationMessage
                 if isinstance(message, SyncConfirmationMessage):
+                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
+                else:
+                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
+            elif message.message_type == MessageType.ROTATION_COMPLETED:
+                from ..models.sync_models import RotationCompletedMessage
+                if isinstance(message, RotationCompletedMessage):
                     session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
                 else:
                     session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
@@ -247,6 +253,10 @@ class UDPService:
                 elif message.message_type == MessageType.SYNC_CONFIRMATION:
                     from ..models.sync_models import SyncConfirmationMessage
                     if isinstance(message, SyncConfirmationMessage):
+                        self.logger.info(f"  Original Message ID: {message.original_message_id}")
+                elif message.message_type == MessageType.ROTATION_COMPLETED:
+                    from ..models.sync_models import RotationCompletedMessage
+                    if isinstance(message, RotationCompletedMessage):
                         self.logger.info(f"  Original Message ID: {message.original_message_id}")
                 self.logger.info(f"  Session ID: {session_id}")
                 self.logger.info(f"  Master SAE: {message.master_sae_id}")
@@ -322,6 +332,7 @@ class UDPService:
             MessageType.KEY_NOTIFICATION: StateMessageType.NOTIFY,
             MessageType.KEY_ACKNOWLEDGMENT: StateMessageType.NOTIFY_ACK,
             MessageType.SYNC_CONFIRMATION: StateMessageType.ACK,
+            MessageType.ROTATION_COMPLETED: StateMessageType.ROTATION_COMPLETED,
             MessageType.ERROR: StateMessageType.ERROR
         }
         return mapping.get(message_type, StateMessageType.ERROR)
