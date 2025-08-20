@@ -61,10 +61,11 @@ COMMAND_HIERARCHY = {
         'notify': {'<sae_id>': {}}
     },
     'persona': {
-        'test': {'<persona_name>': {}},
-        'pre-configure': {'<persona_name>': {'<key_id>': {}}},
-        'delete-ppk': {'<persona_name>': {'<ppk_id>': {}}},
-        'status': {'<persona_name>': {}}
+        'test': {'[persona_name]': {}},
+        'preconfigure-key': {'<key_id>': {}},
+        'delete-key': {'<key_id>': {}},
+        'roll-key': {'<key_id>': {}},
+        'status': {'[persona_name]': {}}
     },
     'peer': {
         'add': {'<sae_id>': {'<host>': {'<port>': {'[roles <roles>]': {'[description <desc>]': {}}}}}},
@@ -915,10 +916,11 @@ def show_help():
   key notify <sae_id>           - Notify a slave SAE of available key
 
 [bold cyan]Persona Commands:[/bold cyan]
-      persona test <persona_name>   - Test a device persona
-    persona pre-configure <persona_name> <key_id> - Pre-configure a key
-    persona delete-ppk <persona_name> <ppk_id> - Delete a specific PPK
-    persona status <persona_name> - Get detailed device status
+    persona test [persona_name]              - Test a device persona (uses configured if not specified)
+    persona preconfigure-key <key_id>        - Pre-configure a key using configured persona
+    persona delete-key <key_id>              - Delete a key using configured persona
+    persona roll-key <key_id>                - Roll/rotate a key using configured persona
+    persona status [persona_name]            - Get detailed device status (uses configured if not specified)      
 
 [bold cyan]Peer Commands:[/bold cyan]
   peer add <sae_id> <host> <port> [roles <roles>] [description <desc>]
@@ -1689,31 +1691,39 @@ def handle_persona(args):
     """Handle persona commands."""
     if not args:
         console.print("[yellow]Usage: persona <subcommand>[/yellow]")
-        console.print("Available subcommands: test")
+        console.print("Available subcommands: test, preconfigure-key, delete-key, roll-key, status")
         return
     
     subcommand = args[0].lower()
     
     if subcommand == 'test':
         handle_persona_test(args[1:])
-    elif subcommand == 'pre-configure':
-        handle_persona_pre_configure(args[1:])
-    elif subcommand == 'delete-ppk':
-        handle_persona_delete_ppk(args[1:])
+    elif subcommand == 'preconfigure-key':
+        handle_persona_preconfigure_key(args[1:])
+    elif subcommand == 'delete-key':
+        handle_persona_delete_key(args[1:])
+    elif subcommand == 'roll-key':
+        handle_persona_roll_key(args[1:])
     elif subcommand == 'status':
         handle_persona_status(args[1:])
     else:
         console.print(f"[yellow]Unknown persona subcommand: {subcommand}[/yellow]")
-        console.print("[yellow]Available subcommands: test, pre-configure, delete-ppk, status[/yellow]")
+        console.print("[yellow]Available subcommands: test, preconfigure-key, delete-key, roll-key, status[/yellow]")
 
 
 def handle_persona_test(args):
     """Handle persona test command."""
     if not args:
-        persona_name = input("Enter persona name to test: ").strip()
-        if not persona_name:
-            console.print("[red]✗[/red] Persona name is required")
-            return
+        # Try to get configured persona from config
+        try:
+            from src.config import config
+            persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+            console.print(f"[blue]Using configured persona: {persona_name}[/blue]")
+        except:
+            persona_name = input("Enter persona name to test: ").strip()
+            if not persona_name:
+                console.print("[red]✗[/red] Persona name is required")
+                return
     else:
         persona_name = args[0]
     
@@ -1748,14 +1758,22 @@ def handle_persona_test(args):
         console.print(f"[red]✗[/red] Error testing persona: {e}")
 
 
-def handle_persona_pre_configure(args):
-    """Handle persona pre-configure command."""
-    if len(args) < 2:
-        console.print("[yellow]Usage: persona pre-configure <persona_name> <key_id>[/yellow]")
+def handle_persona_preconfigure_key(args):
+    """Handle persona preconfigure-key command."""
+    if len(args) < 1:
+        console.print("[yellow]Usage: persona preconfigure-key <key_id>[/yellow]")
         return
     
-    persona_name = args[0]
-    key_id = args[1]
+    key_id = args[0]
+    
+    # Get configured persona from config
+    try:
+        from src.config import config
+        persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+        console.print(f"[blue]Using configured persona: {persona_name}[/blue]")
+    except:
+        console.print("[red]✗[/red] No persona configured. Please set device_persona in config.")
+        return
     
     try:
         from src.personas.base_persona import persona_manager, PreConfigureContext
@@ -1794,14 +1812,22 @@ def handle_persona_pre_configure(args):
         console.print(f"[red]✗[/red] Error pre-configuring key: {e}")
 
 
-def handle_persona_delete_ppk(args):
-    """Handle persona delete-ppk command."""
-    if len(args) < 2:
-        console.print("[yellow]Usage: persona delete-ppk <persona_name> <ppk_id>[/yellow]")
+def handle_persona_delete_key(args):
+    """Handle persona delete-key command."""
+    if len(args) < 1:
+        console.print("[yellow]Usage: persona delete-key <key_id>[/yellow]")
         return
     
-    persona_name = args[0]
-    ppk_id = args[1]
+    key_id = args[0]
+    
+    # Get configured persona from config
+    try:
+        from src.config import config
+        persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+        console.print(f"[blue]Using configured persona: {persona_name}[/blue]")
+    except:
+        console.print("[red]✗[/red] No persona configured. Please set device_persona in config.")
+        return
     
     try:
         from src.personas.base_persona import persona_manager
@@ -1813,30 +1839,91 @@ def handle_persona_delete_ppk(args):
             console.print(f"[red]✗[/red] Failed to load persona: {persona_name}")
             return
         
-        console.print(f"[blue]Deleting PPK with persona: {persona_name}[/blue]")
+        console.print(f"[blue]Deleting key with persona: {persona_name}[/blue]")
         
         # Check if persona has delete_ppk method
         if hasattr(persona_instance, 'delete_ppk'):
-            success = persona_instance.delete_ppk(ppk_id)
+            success = persona_instance.delete_ppk(key_id)
             
             if success:
-                console.print(f"[green]✓[/green] Successfully deleted PPK {ppk_id}")
+                console.print(f"[green]✓[/green] Successfully deleted key {key_id}")
             else:
-                console.print(f"[red]✗[/red] Failed to delete PPK {ppk_id}")
+                console.print(f"[red]✗[/red] Failed to delete key {key_id}")
         else:
-            console.print(f"[yellow]Persona {persona_name} does not support PPK deletion[/yellow]")
+            console.print(f"[yellow]Persona {persona_name} does not support key deletion[/yellow]")
         
     except Exception as e:
-        console.print(f"[red]✗[/red] Error deleting PPK: {e}")
+        console.print(f"[red]✗[/red] Error deleting key: {e}")
+
+
+def handle_persona_roll_key(args):
+    """Handle persona roll-key command."""
+    if len(args) < 1:
+        console.print("[yellow]Usage: persona roll-key <key_id>[/yellow]")
+        return
+    
+    key_id = args[0]
+    
+    # Get configured persona from config
+    try:
+        from src.config import config
+        persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+        console.print(f"[blue]Using configured persona: {persona_name}[/blue]")
+    except:
+        console.print("[red]✗[/red] No persona configured. Please set device_persona in config.")
+        return
+    
+    try:
+        from src.personas.base_persona import persona_manager, RotationContext
+        import time
+        
+        # Load persona
+        persona_instance = persona_manager.load_persona(persona_name)
+        
+        if not persona_instance:
+            console.print(f"[red]✗[/red] Failed to load persona: {persona_name}")
+            return
+        
+        console.print(f"[blue]Rolling key with persona: {persona_name}[/blue]")
+        
+        # Create rotation context
+        rotation_context = RotationContext(
+            key_id=key_id,
+            rotation_timestamp=int(time.time()) + 60,  # 1 minute from now
+            device_interface="eth0",
+            encryption_algorithm="AES-256",
+            key_priority="normal",
+            rollback_on_failure=True,
+            session_id=f"roll-key-{int(time.time())}",
+            master_sae_id="SAE_001",
+            slave_sae_id="SAE_002"
+        )
+        
+        # Execute key rotation
+        success = persona_instance.rotate_key(rotation_context)
+        
+        if success:
+            console.print(f"[green]✓[/green] Successfully initiated key roll for {key_id}")
+        else:
+            console.print(f"[red]✗[/red] Failed to roll key {key_id}")
+        
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error rolling key: {e}")
 
 
 def handle_persona_status(args):
     """Handle persona status command."""
-    if len(args) < 1:
-        console.print("[yellow]Usage: persona status <persona_name>[/yellow]")
-        return
-    
-    persona_name = args[0]
+    if not args:
+        # Try to get configured persona from config
+        try:
+            from src.config import config
+            persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+            console.print(f"[blue]Using configured persona: {persona_name}[/blue]")
+        except:
+            console.print("[red]✗[/red] No persona configured. Please set device_persona in config.")
+            return
+    else:
+        persona_name = args[0]
     
     try:
         from src.personas.base_persona import persona_manager
