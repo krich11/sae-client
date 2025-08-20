@@ -19,7 +19,7 @@ from ..config import config_manager, logger
 from ..models.api_models import (
     KeyType, KeyStatus, LocalKey, ETSIKey, KeyRequest, KeyResponse
 )
-from .storage_service import StorageService
+from .storage_service import storage_service
 
 
 class KeyManagementService:
@@ -29,7 +29,7 @@ class KeyManagementService:
         """Initialize key management service."""
         self.config = config_manager.config
         self.logger = logging.getLogger(__name__)
-        self.storage = StorageService()
+        self.storage = storage_service
         self._load_keys()
     
     def _load_keys(self):

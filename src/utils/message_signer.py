@@ -417,7 +417,9 @@ class MessageSigner:
     
     def create_key_acknowledgment(self, original_message_id: str, 
                                 master_sae_id: str, slave_sae_id: str,
-                                selected_key_id: Optional[str] = None) -> SignedMessage:
+                                selected_key_id: Optional[str] = None,
+                                status: str = "ready",
+                                suggested_rotation_timestamp: Optional[int] = None) -> SignedMessage:
         """
         Create a signed key acknowledgment message.
         
@@ -426,6 +428,8 @@ class MessageSigner:
             master_sae_id: Master SAE ID
             slave_sae_id: Slave SAE ID
             selected_key_id: Optional selected key ID
+            status: Status of key preparation ('ready' or 'need_more_time')
+            suggested_rotation_timestamp: Optional suggested rotation timestamp
             
         Returns:
             SignedMessage: The signed key acknowledgment message
@@ -436,7 +440,9 @@ class MessageSigner:
             original_message_id=original_message_id,
             master_sae_id=master_sae_id,
             slave_sae_id=slave_sae_id,
-            selected_key_id=selected_key_id
+            selected_key_id=selected_key_id,
+            status=status,
+            suggested_rotation_timestamp=suggested_rotation_timestamp
         )
         
         return self.sign_message(message, slave_sae_id)
