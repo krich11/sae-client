@@ -927,6 +927,17 @@ def interactive():
     # Check key file exists
     check_key_file()
     
+    # Load configured persona at startup
+    try:
+        from src.personas.base_persona import persona_manager
+        configured_persona = persona_manager.load_configured_persona()
+        if configured_persona:
+            console.print(f"[blue]✓[/blue] Loaded configured persona: {config.device_persona if config.device_persona != 'default' else 'aos8'}")
+        else:
+            console.print(f"[yellow]Warning: Could not load configured persona: {config.device_persona if config.device_persona != 'default' else 'aos8'}[/yellow]")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Could not load configured persona: {e}[/yellow]")
+    
     # Start UDP listener in background for synchronization
     try:
         from src.services.udp_service import udp_service
@@ -1840,8 +1851,12 @@ def handle_persona_test(args):
     try:
         from src.personas.base_persona import persona_manager
         
-        # Load persona
-        persona_instance = persona_manager.load_persona(persona_name)
+        # Get persona (should already be loaded at startup)
+        persona_instance = persona_manager.get_persona(persona_name)
+        
+        # If not loaded, try to load it
+        if not persona_instance:
+            persona_instance = persona_manager.load_persona(persona_name)
         
         if not persona_instance:
             console.print(f"[red]✗[/red] Failed to load persona: {persona_name}")
@@ -1888,8 +1903,12 @@ def handle_persona_preconfigure_key(args):
     try:
         from src.personas.base_persona import persona_manager, PreConfigureContext
         
-        # Load persona
-        persona_instance = persona_manager.load_persona(persona_name)
+        # Get persona (should already be loaded at startup)
+        persona_instance = persona_manager.get_persona(persona_name)
+        
+        # If not loaded, try to load it
+        if not persona_instance:
+            persona_instance = persona_manager.load_persona(persona_name)
         
         if not persona_instance:
             console.print(f"[red]✗[/red] Failed to load persona: {persona_name}")
@@ -1942,8 +1961,12 @@ def handle_persona_delete_key(args):
     try:
         from src.personas.base_persona import persona_manager
         
-        # Load persona
-        persona_instance = persona_manager.load_persona(persona_name)
+        # Get persona (should already be loaded at startup)
+        persona_instance = persona_manager.get_persona(persona_name)
+        
+        # If not loaded, try to load it
+        if not persona_instance:
+            persona_instance = persona_manager.load_persona(persona_name)
         
         if not persona_instance:
             console.print(f"[red]✗[/red] Failed to load persona: {persona_name}")
@@ -1987,8 +2010,12 @@ def handle_persona_roll_key(args):
         from src.personas.base_persona import persona_manager, RotationContext
         import time
         
-        # Load persona
-        persona_instance = persona_manager.load_persona(persona_name)
+        # Get persona (should already be loaded at startup)
+        persona_instance = persona_manager.get_persona(persona_name)
+        
+        # If not loaded, try to load it
+        if not persona_instance:
+            persona_instance = persona_manager.load_persona(persona_name)
         
         if not persona_instance:
             console.print(f"[red]✗[/red] Failed to load persona: {persona_name}")
@@ -2027,7 +2054,7 @@ def handle_persona_roll_key(args):
 def handle_persona_status(args):
     """Handle persona status command."""
     if not args:
-        # Try to get configured persona from config
+        # Use configured persona
         try:
             from src.config import config
             persona_name = config.device_persona if config.device_persona != "default" else "aos8"
@@ -2041,8 +2068,12 @@ def handle_persona_status(args):
     try:
         from src.personas.base_persona import persona_manager
         
-        # Load persona
-        persona_instance = persona_manager.load_persona(persona_name)
+        # Get persona (should already be loaded at startup)
+        persona_instance = persona_manager.get_persona(persona_name)
+        
+        # If not loaded, try to load it
+        if not persona_instance:
+            persona_instance = persona_manager.load_persona(persona_name)
         
         if not persona_instance:
             console.print(f"[red]✗[/red] Failed to load persona: {persona_name}")

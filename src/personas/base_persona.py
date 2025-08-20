@@ -412,6 +412,33 @@ class PersonaManager:
             persona_info[name] = persona.get_persona_info()
         return persona_info
     
+    def load_configured_persona(self) -> Optional[BasePersona]:
+        """
+        Load the configured persona from the main application config.
+        
+        Returns:
+            BasePersona: Loaded configured persona instance, or None if loading failed
+        """
+        try:
+            from src.config import config
+            
+            # Get configured persona name
+            persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+            
+            # Load the configured persona
+            persona = self.load_persona(persona_name)
+            
+            if persona:
+                self.logger.info(f"Successfully loaded configured persona: {persona_name}")
+            else:
+                self.logger.warning(f"Failed to load configured persona: {persona_name}")
+            
+            return persona
+            
+        except Exception as e:
+            self.logger.error(f"Error loading configured persona: {e}")
+            return None
+    
     def unload_persona(self, persona_name: str) -> bool:
         """
         Unload a persona plugin.
