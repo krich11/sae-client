@@ -323,13 +323,14 @@ class KeyManagementService:
         
         return unavailable_keys
     
-    def mark_key_as_notified(self, key_id: str, slave_sae_id: str) -> bool:
+    def mark_key_as_notified(self, key_id: str, slave_sae_id: str, rotation_timestamp: int = None) -> bool:
         """
         Mark a key as notified to a specific slave SAE.
         
         Args:
             key_id: Key identifier
             slave_sae_id: Slave SAE ID that was notified
+            rotation_timestamp: Scheduled rotation timestamp (optional)
             
         Returns:
             bool: True if key was marked as notified, False otherwise
@@ -348,6 +349,10 @@ class KeyManagementService:
                 'slave_sae_id': slave_sae_id,
                 'notified_at': datetime.now().isoformat()
             }
+            
+            # Add rotation timestamp if provided
+            if rotation_timestamp:
+                notification_info['rotation_timestamp'] = rotation_timestamp
             
             # Check if already notified to this slave
             already_notified = any(
@@ -510,6 +515,9 @@ class KeyManagementService:
         - A scheduled rotation fails or times out
         - A key was notified but never acknowledged
         
+        IMPORTANT: Only reverts keys that are in NOTIFIED/ASSIGNED state.
+        Keys that are IN_PRODUCTION, ROLLED, or EXPIRED are not reverted.
+        
         Args:
             key_id: Key identifier
             slave_sae_id: Optional slave SAE ID to remove from notifications
@@ -519,6 +527,11 @@ class KeyManagementService:
         """
         key = self.get_key(key_id)
         if key:
+            # Only revert keys that are in NOTIFIED/ASSIGNED state
+            if key.status not in [KeyStatus.ASSIGNED]:
+                self.logger.info(f"Key {key_id} is in {key.status} state - not reverting to available")
+                return False
+            
             # Remove the notification for the specific slave if provided
             if slave_sae_id and key.metadata and 'notifications' in key.metadata:
                 key.metadata['notifications'] = [
@@ -553,40 +566,32 @@ class KeyManagementService:
         
         return False
     
-    def cleanup_expired_notifications(self, max_age_hours: int = 24) -> int:
+    def cleanup_expired_notifications(self) -> int:
         """
-        Clean up expired notifications and revert keys to available status.
+        Clean up expired notifications based on scheduled rotation time.
         
         This method should be called periodically to clean up keys that were
-        notified but never completed the handshake process.
+        notified but never completed the handshake process. Keys are reverted
+        when their scheduled rotation time has passed.
         
-        Args:
-            max_age_hours: Maximum age of notifications before cleanup (default: 24 hours)
-            
         Returns:
             int: Number of keys cleaned up
         """
+        import time
         cleaned_count = 0
-        current_time = datetime.now()
+        current_time = int(time.time())
         
         for key in self.keys.values():
             if (key.metadata and 
                 'notifications' in key.metadata and 
                 key.metadata['notifications']):
                 
-                # Check each notification for age
+                # Check each notification for scheduled rotation time
                 expired_notifications = []
                 for notification in key.metadata['notifications']:
-                    notified_at_str = notification.get('notified_at')
-                    if notified_at_str:
-                        try:
-                            notified_at = datetime.fromisoformat(notified_at_str)
-                            age = current_time - notified_at
-                            if age.total_seconds() > max_age_hours * 3600:
-                                expired_notifications.append(notification)
-                        except ValueError:
-                            # Invalid date format, consider it expired
-                            expired_notifications.append(notification)
+                    rotation_timestamp = notification.get('rotation_timestamp')
+                    if rotation_timestamp and current_time > rotation_timestamp:
+                        expired_notifications.append(notification)
                 
                 # Remove expired notifications
                 if expired_notifications:
@@ -597,7 +602,7 @@ class KeyManagementService:
                             cleaned_count += 1
         
         if cleaned_count > 0:
-            self.logger.info(f"Cleaned up {cleaned_count} expired notifications")
+            self.logger.info(f"Cleaned up {cleaned_count} expired notifications based on rotation time")
         
         return cleaned_count
     

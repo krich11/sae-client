@@ -989,16 +989,18 @@ class UDPService:
         """Get a specific synchronization session."""
         return self.sessions.get(session_id)
     
-    def cleanup_old_sessions(self, max_age_hours: int = 24):
-        """Clean up old synchronization sessions and revert expired keys."""
+    def cleanup_old_sessions(self):
+        """Clean up expired synchronization sessions and revert keys based on scheduled rotation time."""
         try:
-            current_time = datetime.now()
+            import time
+            current_time = int(time.time())
             sessions_to_remove = []
             
             for session_id, session in self.sessions.items():
-                age = current_time - session.updated_at
-                if age.total_seconds() > max_age_hours * 3600:
+                # Check if the scheduled rotation time has passed
+                if session.rotation_timestamp and current_time > session.rotation_timestamp:
                     sessions_to_remove.append(session_id)
+                    self.logger.info(f"Session {session_id} expired - rotation time {session.rotation_timestamp} has passed")
             
             # Clean up expired sessions and revert keys
             for session_id in sessions_to_remove:
@@ -1006,7 +1008,7 @@ class UDPService:
                 key_ids = session.key_ids if hasattr(session, 'key_ids') else []
                 slave_sae_id = session.slave_sae_id if hasattr(session, 'slave_sae_id') else None
                 
-                # Revert keys back to available status
+                # Revert keys back to available status (only if still in NOTIFIED/ASSIGNED state)
                 if key_ids and slave_sae_id:
                     from src.services.key_service import key_service
                     for key_id in key_ids:
@@ -1015,21 +1017,22 @@ class UDPService:
                 
                 # Remove the session
                 del self.sessions[session_id]
-                self.logger.info(f"Cleaned up old session: {session_id}")
+                self.logger.info(f"Cleaned up expired session: {session_id}")
                 
         except Exception as e:
             self.logger.error(f"Error cleaning up old sessions: {e}")
     
-    def cleanup_expired_keys(self, max_age_hours: int = 24):
+    def cleanup_expired_keys(self):
         """
         Clean up expired key notifications and revert keys to available status.
         
         This method should be called periodically to clean up keys that were
-        notified but never completed the handshake process.
+        notified but never completed the handshake process. Keys are reverted
+        when their scheduled rotation time has passed.
         """
         try:
             from src.services.key_service import key_service
-            cleaned_count = key_service.cleanup_expired_notifications(max_age_hours)
+            cleaned_count = key_service.cleanup_expired_notifications()
             
             if cleaned_count > 0:
                 self.logger.info(f"UDP Service: Cleaned up {cleaned_count} expired key notifications")

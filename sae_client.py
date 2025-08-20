@@ -1076,10 +1076,10 @@ def handle_cleanup():
         console.print("[blue]Cleaning up expired sessions and keys...[/blue]")
         
         # Clean up expired sessions and revert keys
-        udp_service.cleanup_old_sessions(max_age_hours=24)
+        udp_service.cleanup_old_sessions()
         
         # Clean up expired key notifications
-        cleaned_count = udp_service.cleanup_expired_keys(max_age_hours=24)
+        cleaned_count = udp_service.cleanup_expired_keys()
         
         # Get current key statistics
         key_stats = key_service.get_key_statistics()
@@ -1876,8 +1876,8 @@ def handle_key_notify(args):
                 rotation_timestamp=rotation_timestamp
             )
             
-            # Mark key as notified to this slave
-            key_service.mark_key_as_notified(key.key_id, slave_id)
+            # Mark key as notified to this slave with rotation timestamp
+            key_service.mark_key_as_notified(key.key_id, slave_id, rotation_timestamp)
             
             console.print(f"[green]✓[/green] Successfully notified slave {slave_id}")
             console.print(f"[green]✓[/green] Key ID: {key.key_id}")
