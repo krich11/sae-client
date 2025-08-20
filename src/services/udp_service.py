@@ -923,23 +923,25 @@ class UDPService:
                 # Create rotation context with flexible parameters
                 from src.personas.base_persona import RotationContext
                 
+                # Create rotation context with persona configuration
+                persona_config = persona.config if hasattr(persona, 'config') else {}
                 context = RotationContext(
                     key_id=message.original_message_id,
                     rotation_timestamp=message.final_rotation_timestamp,
-                    device_interface=self.sync_config.get('device_interface'),
-                    encryption_algorithm=self.sync_config.get('encryption_algorithm', 'AES-256'),
-                    key_priority=self.sync_config.get('key_priority', 'normal'),
-                    rollback_on_failure=self.sync_config.get('rollback_on_failure', True),
-                    notification_url=self.sync_config.get('notification_url'),
-                    notification_headers=self.sync_config.get('notification_headers', {}),
+                    device_interface=persona_config.get('device_interface'),
+                    encryption_algorithm=persona_config.get('encryption_algorithm', 'AES-256'),
+                    key_priority=persona_config.get('key_priority', 'normal'),
+                    rollback_on_failure=persona_config.get('rollback_on_failure', True),
+                    notification_url=persona_config.get('notification_url'),
+                    notification_headers=persona_config.get('notification_headers', {}),
                     session_id=f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}",
                     master_sae_id=message.master_sae_id,
                     slave_sae_id=message.slave_sae_id,
-                    custom_metadata=self.sync_config.get('custom_metadata', {}),
-                    advance_warning_seconds=self.sync_config.get('advance_warning_seconds', 30),
-                    cleanup_delay_seconds=self.sync_config.get('cleanup_delay_seconds', 60),
-                    validate_key_before_rotation=self.sync_config.get('validate_key_before_rotation', True),
-                    validate_device_after_rotation=self.sync_config.get('validate_device_after_rotation', True)
+                    custom_metadata=persona_config.get('custom_metadata', {}),
+                    advance_warning_seconds=persona_config.get('advance_warning_seconds', 30),
+                    cleanup_delay_seconds=persona_config.get('cleanup_delay_seconds', 60),
+                    validate_key_before_rotation=persona_config.get('validate_key_before_rotation', True),
+                    validate_device_after_rotation=persona_config.get('validate_device_after_rotation', True)
                 )
                 
                 # Execute rotation with context
@@ -959,11 +961,9 @@ class UDPService:
         try:
             from src.personas.base_persona import persona_manager
             
-            # Use the configured persona from the main config instead of sync_config
+            # Use the configured persona from the main config
             from src.config import config_manager
             configured_persona_name = config_manager.config.device_persona
-            if configured_persona_name == "default":
-                configured_persona_name = "aos8"  # Default to aos8 if not specified
             
             # Load the configured persona
             persona = persona_manager.get_persona(configured_persona_name)
