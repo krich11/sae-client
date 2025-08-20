@@ -32,8 +32,6 @@ class Aos8Persona(BasePersona):
         self.api_protocol = config.get('api_protocol', 'https')
         self.verify_ssl = config.get('verify_ssl', False)
         self.device_type = config.get('device_type', 'controller')  # controller, ap, switch
-        self.interface_name = config.get('interface_name', 'eth0')
-        self.key_algorithm = config.get('key_algorithm', 'aes-256-gcm')
         self.simulation_mode = config.get('simulation_mode', True)
         self.operation_delay = config.get('operation_delay', 2.0)  # seconds
         self.api_timeout = config.get('api_timeout', 30)
@@ -49,8 +47,6 @@ class Aos8Persona(BasePersona):
         print(f"   API Protocol: {self.api_protocol}")
         print(f"   API Port: {self.api_port}")
         print(f"   Device Type: {self.device_type}")
-        print(f"   Interface: {self.interface_name}")
-        print(f"   Algorithm: {self.key_algorithm}")
         print(f"   Simulation Mode: {self.simulation_mode}")
         print(f"   Operation Delay: {self.operation_delay}s")
     
@@ -69,11 +65,7 @@ class Aos8Persona(BasePersona):
             print(f"   ⚠️  Warning: Invalid device_type '{self.device_type}', using 'controller'")
             self.device_type = 'controller'
         
-        # Validate algorithm
-        valid_algorithms = ['aes-256-gcm', 'aes-128-gcm', 'chacha20-poly1305']
-        if self.key_algorithm not in valid_algorithms:
-            print(f"   ⚠️  Warning: Invalid key_algorithm '{self.key_algorithm}', using 'aes-256-gcm'")
-            self.key_algorithm = 'aes-256-gcm'
+
         
         # Validate API settings
         if self.api_protocol not in ['http', 'https']:
@@ -287,7 +279,7 @@ class Aos8Persona(BasePersona):
         print(f"🔑 {self.persona_name} Persona: Pre-Configure Key")
         print(f"   Key ID: {context.key_id}")
         print(f"   Key Material Size: {len(context.key_material)} bytes")
-        print(f"   Device Interface: {context.device_interface or self.interface_name}")
+        print(f"   Device Interface: {context.device_interface or 'default'}")
         print(f"   Encryption Algorithm: {context.encryption_algorithm}")
         print(f"   Key Priority: {context.key_priority}")
         
@@ -357,7 +349,7 @@ class Aos8Persona(BasePersona):
         print(f"   Rotation Timestamp: {context.rotation_timestamp}")
         print(f"   Rotation Time: {time.ctime(context.rotation_timestamp)}")
         print(f"   Current Time: {time.ctime()}")
-        print(f"   Device Interface: {context.device_interface or self.interface_name}")
+        print(f"   Device Interface: {context.device_interface or 'default'}")
         print(f"   Encryption Algorithm: {context.encryption_algorithm}")
         print(f"   Key Priority: {context.key_priority}")
         print(f"   Rollback on Failure: {context.rollback_on_failure}")
@@ -373,8 +365,8 @@ class Aos8Persona(BasePersona):
             for key, value in context.custom_metadata.items():
                 print(f"     {key}: {value}")
         
-        interface = context.device_interface or self.interface_name
-        algorithm = context.encryption_algorithm or self.key_algorithm
+        interface = context.device_interface or 'default'
+        algorithm = context.encryption_algorithm or 'aes-256-gcm'
         
         # AOS8-specific rotation steps
         print(f"   📝 AOS8 key rotation steps:")
@@ -448,7 +440,7 @@ class Aos8Persona(BasePersona):
         """
         print(f"   🔄 Executing AOS8 rollback...")
         
-        interface = context.device_interface or self.interface_name
+        interface = context.device_interface or 'default'
         
         # Execute AOS8 rollback API calls
         rollback_api_calls = [
@@ -475,6 +467,132 @@ class Aos8Persona(BasePersona):
             print(f"   ✅ Rollback API call successful: {method} {endpoint}")
         
         return True
+    
+    def _execute_show_command(self, command: str) -> tuple[bool, Dict, str]:
+        """
+        Execute AOS8 show command using the new API format.
+        
+        Args:
+            command: Show command to execute (e.g., "show clock", "show version")
+            
+        Returns:
+            tuple: (success, response_data, error_message)
+        """
+        if self.simulation_mode:
+            print(f"   🔄 Simulating AOS8 show command: {command}")
+            time.sleep(self.operation_delay)
+            
+            # Return simulated response based on command
+            if command == "show clock":
+                return True, {
+                    "_data": ["2025-08-20 11:48:00 CDT"],
+                    "_global_result": {
+                        "status": "0",
+                        "status_str": "Command completed successfully"
+                    }
+                }, ""
+            elif command == "show version":
+                return True, {
+                    "_data": [
+                        "HPE Aruba Networking Wireless Operating System.",
+                        "AOS-8 (MODEL: ArubaMC-VA-US), Version 8.13.0.1-FIPS LSR",
+                        "Website: http://www.arubanetworks.com",
+                        "(c) Copyright 2025 Hewlett Packard Enterprise Development LP.",
+                        "Compiled on 2025-08-12 at 16:40:01 UTC (build 93317) by jenkins"
+                    ],
+                    "_global_result": {
+                        "status": "0",
+                        "status_str": "Command completed successfully"
+                    }
+                }, ""
+            else:
+                return True, {
+                    "_data": [f"Simulated output for: {command}"],
+                    "_global_result": {
+                        "status": "0",
+                        "status_str": "Command completed successfully"
+                    }
+                }, ""
+        
+        try:
+            session = self._get_api_session()
+            
+            # Build URL for show command
+            url = f"{self.api_protocol}://{self.device_ip}:{self.api_port}/v1/configuration/showcommand"
+            
+            # Add query parameters
+            params = {
+                "command": command,
+                "UIDARUBA": self.session_token
+            }
+            
+            print(f"   🌐 Show Command: {command}")
+            print(f"   🔗 URL: {url}")
+            
+            response = session.get(url, params=params, timeout=self.api_timeout)
+            
+            print(f"   📊 Response Status: {response.status_code}")
+            
+            if response.status_code == 200:
+                try:
+                    response_data = response.json()
+                    return True, response_data, ""
+                except json.JSONDecodeError:
+                    return False, {}, f"Invalid JSON response: {response.text}"
+            else:
+                error_msg = f"Show command failed with status {response.status_code}"
+                try:
+                    error_data = response.json()
+                    error_msg += f": {error_data.get('message', 'Unknown error')}"
+                except:
+                    error_msg += f": {response.text}"
+                return False, {}, error_msg
+                
+        except requests.exceptions.Timeout:
+            return False, {}, f"Show command timed out after {self.api_timeout} seconds"
+        except requests.exceptions.ConnectionError:
+            return False, {}, f"Connection error to {self.device_ip}:{self.api_port}"
+        except Exception as e:
+            return False, {}, f"Show command execution error: {e}"
+    
+    def _logout(self) -> bool:
+        """
+        Logout from AOS8 device session.
+        
+        Returns:
+            bool: True if logout was successful
+        """
+        if self.simulation_mode:
+            print(f"   🔄 Simulating AOS8 logout...")
+            time.sleep(self.operation_delay)
+            self.session_token = None
+            self.session_expiry = None
+            self.csrf_token = None
+            return True
+        
+        try:
+            if self.session:
+                # AOS8 logout endpoint
+                url = f"{self.api_protocol}://{self.device_ip}:{self.api_port}/v1/api/logout"
+                
+                print(f"   🚪 Logging out from AOS8 device...")
+                
+                response = self.session.post(url, timeout=self.api_timeout)
+                
+                if response.status_code in [200, 204]:
+                    print(f"   ✅ Logout successful")
+                    # Clear session data
+                    self.session_token = None
+                    self.session_expiry = None
+                    self.csrf_token = None
+                    return True
+                else:
+                    print(f"   ⚠️  Logout failed with status {response.status_code}")
+                    return False
+                    
+        except Exception as e:
+            print(f"   ⚠️  Logout error: {e}")
+            return False
     
     def cleanup_old_keys(self) -> bool:
         """
@@ -553,7 +671,7 @@ class Aos8Persona(BasePersona):
     
     def get_device_status(self) -> Dict[str, Any]:
         """
-        Get current AOS8 device status.
+        Get current AOS8 device status using show commands.
         
         Returns:
             Dict containing device status information
@@ -562,14 +680,6 @@ class Aos8Persona(BasePersona):
         print(f"   Device IP: {self.device_ip}")
         print(f"   Device Type: {self.device_type}")
         
-        # Execute AOS8 status API calls
-        status_api_calls = [
-            ("/system/status", "GET"),
-            ("/system/version", "GET"),
-            (f"/configuration/object/interface/{self.interface_name}", "GET"),
-            ("/configuration/object/encryption_key", "GET")
-        ]
-        
         status_data = {
             "device_ip": self.device_ip,
             "device_type": self.device_type,
@@ -577,34 +687,73 @@ class Aos8Persona(BasePersona):
             "version": self.version,
             "simulation_mode": self.simulation_mode,
             "last_operation": time.ctime(),
-            "interface_name": self.interface_name,
-            "key_algorithm": self.key_algorithm
+            "status": "unknown"
         }
         
         if not self.simulation_mode:
-            # Collect real status data via API
-            for endpoint, method in status_api_calls:
-                success, response_data, error = self._execute_aos8_api_call(endpoint, method)
-                if success:
-                    status_data[f"api_{endpoint.replace('/', '_').replace('object', 'obj')}"] = response_data
+            # Authenticate first
+            if not self._authenticate():
+                print(f"   ❌ Authentication failed")
+                status_data["status"] = "authentication_failed"
+                return status_data
+            
+            try:
+                # Get device clock/time for status
+                success, response_data, error = self._execute_show_command("show clock")
+                if success and response_data.get("_global_result", {}).get("status") == "0":
+                    status_data["status"] = "operational"
+                    if response_data.get("_data"):
+                        status_data["current_time"] = response_data["_data"][0]
                 else:
-                    status_data[f"api_{endpoint.replace('/', '_').replace('object', 'obj')}_error"] = error
+                    status_data["status"] = "api_error"
+                    status_data["clock_error"] = error
+                
+                # Get device version
+                success, response_data, error = self._execute_show_command("show version")
+                if success and response_data.get("_global_result", {}).get("status") == "0":
+                    if response_data.get("_data"):
+                        version_output = response_data["_data"]
+                        # Parse version from output
+                        for line in version_output:
+                            if "Version" in line and "AOS-8" in line:
+                                # Extract version number
+                                import re
+                                version_match = re.search(r'Version\s+([\d.]+)', line)
+                                if version_match:
+                                    status_data["aos_version"] = version_match.group(1)
+                                break
+                        status_data["version_output"] = version_output
+                else:
+                    status_data["version_error"] = error
+                
+                # Logout when done
+                self._logout()
+                
+            except Exception as e:
+                print(f"   ❌ Error getting device status: {e}")
+                status_data["status"] = "error"
+                status_data["error"] = str(e)
         else:
             # Simulated status data
             status_data.update({
-                "connected": True,
                 "status": "operational",
-                "aos_version": "8.10.0.0",
-                "encryption_enabled": True,
-                "active_keys": 2,
-                "available_key_slots": 8,
-                "interface_status": "up",
-                "supported_algorithms": ["aes-256-gcm", "aes-128-gcm", "chacha20-poly1305"]
+                "current_time": "2025-08-20 11:48:00 CDT",
+                "aos_version": "8.13.0.1-FIPS",
+                "version_output": [
+                    "HPE Aruba Networking Wireless Operating System.",
+                    "AOS-8 (MODEL: ArubaMC-VA-US), Version 8.13.0.1-FIPS LSR",
+                    "Website: http://www.arubanetworks.com",
+                    "(c) Copyright 2025 Hewlett Packard Enterprise Development LP."
+                ]
             })
         
         print(f"   📝 Device Status:")
         for key, value in status_data.items():
-            if isinstance(value, dict):
+            if isinstance(value, list):
+                print(f"     {key}:")
+                for item in value:
+                    print(f"       {item}")
+            elif isinstance(value, dict):
                 print(f"     {key}:")
                 for sub_key, sub_value in value.items():
                     print(f"       {sub_key}: {sub_value}")
@@ -728,7 +877,6 @@ class Aos8Persona(BasePersona):
             ],
             "supported_algorithms": ["aes-256-gcm", "aes-128-gcm", "chacha20-poly1305"],
             "supported_device_types": ["controller", "ap", "switch"],
-            "supported_interfaces": ["eth0", "eth1", "gigabitethernet0/0/1", "gigabitethernet0/0/2"],
             "aos8_versions": ["8.6.0.0", "8.7.0.0", "8.8.0.0", "8.9.0.0", "8.10.0.0"],
             "last_updated": time.ctime()
         }
