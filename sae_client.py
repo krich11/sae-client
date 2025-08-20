@@ -33,7 +33,13 @@ COMMAND_HIERARCHY = {
     'show': {
         'health': {},
         'status': {'<sae_id>': {}},
-        'keys': {'[keyid <key_id>]': {}},
+        'keys': {
+            '[available]': {},
+            '[unavailable]': {},
+            '[assigned]': {},
+            '[unassigned]': {},
+            '[keyid <key_id>]': {}
+        },
         'sync': {'status': {}},
         'scheduled': {},
         'personas': {},
@@ -1207,18 +1213,47 @@ def handle_show_keys(args):
     """Handle show keys command."""
     try:
         from src.services.key_service import key_service
-        available_keys = key_service.get_available_keys()
         
-        # Filter by key ID if specified
-        if args and len(args) >= 2 and args[0].lower() == 'keyid':
-            key_id = args[1]
-            filtered_keys = [key for key in available_keys if key.key_id == key_id]
-            if filtered_keys:
-                print_keys(filtered_keys, f"Key {key_id}")
+        # Determine which keys to show based on arguments
+        if args and len(args) >= 1:
+            filter_type = args[0].lower()
+            
+            if filter_type == 'available':
+                # Show only available keys
+                keys = key_service.get_available_keys()
+                title = "Available Keys"
+            elif filter_type == 'unavailable':
+                # Show only unavailable keys
+                keys = key_service.get_unavailable_keys()
+                title = "Unavailable Keys"
+            elif filter_type == 'assigned':
+                # Show only assigned keys (notified to slaves)
+                keys = key_service.get_assigned_keys()
+                title = "Assigned Keys"
+            elif filter_type == 'unassigned':
+                # Show only unassigned keys (not notified to slaves)
+                keys = key_service.get_unassigned_keys()
+                title = "Unassigned Keys"
+            elif filter_type == 'keyid' and len(args) >= 2:
+                # Filter by specific key ID
+                key_id = args[1]
+                all_keys = key_service.get_all_keys()
+                filtered_keys = [key for key in all_keys if key.key_id == key_id]
+                if filtered_keys:
+                    print_keys(filtered_keys, f"Key {key_id}")
+                else:
+                    console.print(f"[yellow]No key found with ID: {key_id}[/yellow]")
+                return
             else:
-                console.print(f"[yellow]No key found with ID: {key_id}[/yellow]")
+                # Invalid filter, show all keys
+                keys = key_service.get_all_keys()
+                title = "All Keys"
         else:
-            print_keys(available_keys, "Local Keys")
+            # No filter specified, show all keys
+            keys = key_service.get_all_keys()
+            title = "All Keys"
+        
+        print_keys(keys, title)
             
     except Exception as e:
         console.print(f"[red]✗[/red] Error listing keys: {e}")
@@ -1784,6 +1819,9 @@ def handle_key_notify(args):
                 key_ids=[key.key_id],
                 rotation_timestamp=rotation_timestamp
             )
+            
+            # Mark key as notified to this slave
+            key_service.mark_key_as_notified(key.key_id, slave_id)
             
             console.print(f"[green]✓[/green] Successfully notified slave {slave_id}")
             console.print(f"[green]✓[/green] Key ID: {key.key_id}")

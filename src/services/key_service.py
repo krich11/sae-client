@@ -277,6 +277,155 @@ class KeyManagementService:
         
         return available_keys
     
+    def get_all_keys(self, key_type: Optional[KeyType] = None, allowed_sae_id: Optional[str] = None) -> List[LocalKey]:
+        """
+        Get all keys regardless of status, optionally filtered by type and allowed SAE.
+        
+        Args:
+            key_type: Optional key type filter
+            allowed_sae_id: Optional SAE ID filter (only return keys allowed for this SAE)
+            
+        Returns:
+            List[LocalKey]: List of all keys
+        """
+        all_keys = []
+        
+        for key in self.keys.values():
+            # Filter by key type
+            if key_type is None or key.key_type == key_type:
+                # Filter by allowed SAE ID
+                if allowed_sae_id is None or key.allowed_sae_id == allowed_sae_id:
+                    all_keys.append(key)
+        
+        return all_keys
+    
+    def get_unavailable_keys(self, key_type: Optional[KeyType] = None, allowed_sae_id: Optional[str] = None) -> List[LocalKey]:
+        """
+        Get keys that are not available (used, expired, or invalid), optionally filtered by type and allowed SAE.
+        
+        Args:
+            key_type: Optional key type filter
+            allowed_sae_id: Optional SAE ID filter (only return keys allowed for this SAE)
+            
+        Returns:
+            List[LocalKey]: List of unavailable keys
+        """
+        unavailable_keys = []
+        
+        for key in self.keys.values():
+            # Check if key is unavailable (not valid or not available status)
+            if not self._is_key_valid(key) or key.status != KeyStatus.AVAILABLE:
+                # Filter by key type
+                if key_type is None or key.key_type == key_type:
+                    # Filter by allowed SAE ID
+                    if allowed_sae_id is None or key.allowed_sae_id == allowed_sae_id:
+                        unavailable_keys.append(key)
+        
+        return unavailable_keys
+    
+    def mark_key_as_notified(self, key_id: str, slave_sae_id: str) -> bool:
+        """
+        Mark a key as notified to a specific slave SAE.
+        
+        Args:
+            key_id: Key identifier
+            slave_sae_id: Slave SAE ID that was notified
+            
+        Returns:
+            bool: True if key was marked as notified, False otherwise
+        """
+        key = self.get_key(key_id)
+        if key:
+            if key.metadata is None:
+                key.metadata = {}
+            
+            # Add notification tracking
+            if 'notifications' not in key.metadata:
+                key.metadata['notifications'] = []
+            
+            # Add this notification if not already present
+            notification_info = {
+                'slave_sae_id': slave_sae_id,
+                'notified_at': datetime.now().isoformat()
+            }
+            
+            # Check if already notified to this slave
+            already_notified = any(
+                n.get('slave_sae_id') == slave_sae_id 
+                for n in key.metadata['notifications']
+            )
+            
+            if not already_notified:
+                key.metadata['notifications'].append(notification_info)
+                self.storage.save_key(key)
+                self.logger.info(f"Marked key {key_id} as notified to slave {slave_sae_id}")
+                return True
+            else:
+                self.logger.info(f"Key {key_id} already notified to slave {slave_sae_id}")
+                return True
+        
+        return False
+    
+    def get_assigned_keys(self, key_type: Optional[KeyType] = None, allowed_sae_id: Optional[str] = None) -> List[LocalKey]:
+        """
+        Get keys that have been assigned (notified to slaves), optionally filtered by type and allowed SAE.
+        
+        Args:
+            key_type: Optional key type filter
+            allowed_sae_id: Optional SAE ID filter (only return keys allowed for this SAE)
+            
+        Returns:
+            List[LocalKey]: List of assigned keys
+        """
+        assigned_keys = []
+        
+        for key in self.keys.values():
+            # Check if key has been notified to any slave
+            is_assigned = (
+                key.metadata and 
+                'notifications' in key.metadata and 
+                len(key.metadata['notifications']) > 0
+            )
+            
+            if is_assigned:
+                # Filter by key type
+                if key_type is None or key.key_type == key_type:
+                    # Filter by allowed SAE ID
+                    if allowed_sae_id is None or key.allowed_sae_id == allowed_sae_id:
+                        assigned_keys.append(key)
+        
+        return assigned_keys
+    
+    def get_unassigned_keys(self, key_type: Optional[KeyType] = None, allowed_sae_id: Optional[str] = None) -> List[LocalKey]:
+        """
+        Get keys that have not been assigned (not notified to any slaves), optionally filtered by type and allowed SAE.
+        
+        Args:
+            key_type: Optional key type filter
+            allowed_sae_id: Optional SAE ID filter (only return keys allowed for this SAE)
+            
+        Returns:
+            List[LocalKey]: List of unassigned keys
+        """
+        unassigned_keys = []
+        
+        for key in self.keys.values():
+            # Check if key has NOT been notified to any slave
+            is_assigned = (
+                key.metadata and 
+                'notifications' in key.metadata and 
+                len(key.metadata['notifications']) > 0
+            )
+            
+            if not is_assigned:
+                # Filter by key type
+                if key_type is None or key.key_type == key_type:
+                    # Filter by allowed SAE ID
+                    if allowed_sae_id is None or key.allowed_sae_id == allowed_sae_id:
+                        unassigned_keys.append(key)
+        
+        return unassigned_keys
+    
     def use_key(self, key_id: str) -> Optional[LocalKey]:
         """
         Mark a key as used and return it.
