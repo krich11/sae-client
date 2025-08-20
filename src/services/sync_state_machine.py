@@ -20,6 +20,7 @@ class SyncState(Enum):
     ACKNOWLEDGED = "acknowledged"  # Slave has sent acknowledgment
     CONFIRMED = "confirmed"  # Master has sent confirmation
     ROTATING = "rotating"  # Keys are being rotated
+    PENDING_DONE = "pending_done"  # Waiting for rotation completion with extended timeout
     ERROR = "error"
 
 
@@ -89,10 +90,6 @@ class SyncStateMachine:
                 if message_type == MessageType.NOTIFY:
                     # Master can always send initial notification
                     return True, "New session, accepting initial notification"
-                elif message_type == MessageType.ROTATION_COMPLETED:
-                    # Allow rotation completed messages even without active session
-                    # This handles the case where session was cleaned up after rotation
-                    return True, "Accepting rotation completed notification without active session"
                 else:
                     return False, f"No active session for {message_type.value}"
             
@@ -102,8 +99,6 @@ class SyncStateMachine:
                 del self.sessions[session_id]
                 if message_type == MessageType.NOTIFY:
                     return True, "Session expired, accepting new notification"
-                elif message_type == MessageType.ROTATION_COMPLETED:
-                    return True, "Session expired, accepting rotation completed notification"
                 else:
                     return False, "Session expired, rejecting non-notification message"
             
@@ -186,6 +181,14 @@ class SyncStateMachine:
                 return True, "Slave accepting new notification during rotation"
             elif message_type == MessageType.ROTATION_COMPLETED and is_master:
                 return True, "Master accepting rotation completed notification"
+            else:
+                return False, f"Invalid message {message_type.value} in {current_state.value} state"
+        
+        elif current_state.value == SyncState.PENDING_DONE.value:
+            if message_type == MessageType.ROTATION_COMPLETED and is_master:
+                return True, "Master accepting rotation completed notification in pending done state"
+            elif message_type == MessageType.NOTIFY and is_slave:
+                return True, "Slave accepting new notification in pending done state"
             else:
                 return False, f"Invalid message {message_type.value} in {current_state.value} state"
         
@@ -327,6 +330,13 @@ class SyncStateMachine:
             return True
         
         age = datetime.now() - session.updated_at
+        
+        # PENDING_DONE sessions have a longer timeout (30 minutes)
+        if session.state == SyncState.PENDING_DONE:
+            pending_done_timeout = 1800  # 30 minutes
+            return age.total_seconds() > pending_done_timeout
+        
+        # Regular sessions use the standard timeout (5 minutes)
         return age.total_seconds() > self.session_timeout
     
     def _cleanup_expired_sessions(self):

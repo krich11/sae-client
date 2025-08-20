@@ -1303,15 +1303,19 @@ class UDPService:
             # Execute device-specific key rotation
             self._execute_device_rotation(message)
             
-            # Clean up session after rotation
+            # Transition session to PENDING_DONE instead of deleting it
             if session_id in self.sessions:
-                del self.sessions[session_id]
+                session = self.sessions[session_id]
+                session.state = SyncState.PENDING_DONE
+                session.updated_at = datetime.now()
                 
-                # Debug logging for session cleanup
+                # Debug logging for session state transition
                 if self.config.debug_mode:
-                    self.logger.info(f"SYNC SESSION CLEANED UP:")
+                    self.logger.info(f"SYNC SESSION PENDING_DONE:")
                     self.logger.info(f"  Session ID: {session_id}")
-                    self.logger.info(f"  Cleanup Time: {datetime.now()}")
+                    self.logger.info(f"  State: {session.state}")
+                    self.logger.info(f"  Updated: {session.updated_at}")
+                    self.logger.info(f"  Session will timeout in 30 minutes")
                 
         except Exception as e:
             self.logger.error(f"Error executing key rotation: {e}")
@@ -1528,6 +1532,14 @@ class UDPService:
                     self.logger.error(f"Error deleting key {key_id} from local storage: {e}")
             
             self.logger.info(f"Local storage cleanup completed: {local_deleted_count} keys deleted")
+            
+            # Clean up the session after successful key cleanup
+            session_id = f"{self.config.sae_id}_*_{original_message_id}"
+            for existing_session_id in list(self.sessions.keys()):
+                if original_message_id in existing_session_id:
+                    del self.sessions[existing_session_id]
+                    self.logger.info(f"Cleaned up session after key cleanup: {existing_session_id}")
+                    break
             
         except Exception as e:
             self.logger.error(f"Error performing key cleanup: {e}")
@@ -1866,15 +1878,18 @@ class UDPService:
             # Execute device-specific key rotation for master
             self._execute_device_rotation_for_master(session)
             
-            # Clean up session after rotation
+            # Transition session to PENDING_DONE instead of deleting it
             if session.session_id in self.sessions:
-                del self.sessions[session.session_id]
+                session.state = SyncState.PENDING_DONE
+                session.updated_at = datetime.now()
                 
-                # Debug logging for session cleanup
+                # Debug logging for session state transition
                 if self.config.debug_mode:
-                    self.logger.info(f"MASTER SESSION CLEANED UP:")
+                    self.logger.info(f"MASTER SESSION PENDING_DONE:")
                     self.logger.info(f"  Session ID: {session.session_id}")
-                    self.logger.info(f"  Cleanup Time: {datetime.now()}")
+                    self.logger.info(f"  State: {session.state}")
+                    self.logger.info(f"  Updated: {session.updated_at}")
+                    self.logger.info(f"  Session will timeout in 30 minutes")
                 
         except Exception as e:
             self.logger.error(f"Error executing master key rotation: {e}")
