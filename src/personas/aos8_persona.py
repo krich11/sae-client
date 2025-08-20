@@ -8,8 +8,12 @@ import logging
 import time
 import requests
 import json
+import warnings
 from typing import Dict, Any, Optional
 from pathlib import Path
+
+# Suppress SSL certificate warnings for development
+warnings.filterwarnings('ignore', message='Unverified HTTPS request')
 
 from .base_persona import BasePersona, PreConfigureContext, RotationContext
 
@@ -536,9 +540,32 @@ class Aos8Persona(BasePersona):
             if response.status_code == 200:
                 try:
                     response_data = response.json()
-                    return True, response_data, ""
+                    print(f"   📄 Response Data: {json.dumps(response_data, indent=2)[:500]}...")
+                    
+                    # Check if the command was successful
+                    # Some AOS8 devices return data directly without _global_result wrapper
+                    if '_global_result' in response_data:
+                        global_result = response_data.get('_global_result', {})
+                        if global_result.get('status') == '0':
+                            return True, response_data, ""
+                        else:
+                            error_msg = f"Command failed: {global_result.get('status_str', 'Unknown error')}"
+                            print(f"   ❌ {error_msg}")
+                            return False, response_data, error_msg
+                    else:
+                        # Direct data response - assume success if we have _data
+                        if '_data' in response_data and response_data['_data']:
+                            print(f"   ✅ Command successful (direct response)")
+                            return True, response_data, ""
+                        else:
+                            error_msg = "Command failed: No data returned"
+                            print(f"   ❌ {error_msg}")
+                            return False, response_data, error_msg
+                        
                 except json.JSONDecodeError:
-                    return False, {}, f"Invalid JSON response: {response.text}"
+                    error_msg = f"Invalid JSON response: {response.text}"
+                    print(f"   ❌ {error_msg}")
+                    return False, {}, error_msg
             else:
                 error_msg = f"Show command failed with status {response.status_code}"
                 try:
@@ -546,6 +573,7 @@ class Aos8Persona(BasePersona):
                     error_msg += f": {error_data.get('message', 'Unknown error')}"
                 except:
                     error_msg += f": {response.text}"
+                print(f"   ❌ {error_msg}")
                 return False, {}, error_msg
                 
         except requests.exceptions.Timeout:
@@ -699,18 +727,22 @@ class Aos8Persona(BasePersona):
             
             try:
                 # Get device clock/time for status
+                print(f"   🔍 Executing 'show clock' command...")
                 success, response_data, error = self._execute_show_command("show clock")
-                if success and response_data.get("_global_result", {}).get("status") == "0":
+                if success:
                     status_data["status"] = "operational"
                     if response_data.get("_data"):
                         status_data["current_time"] = response_data["_data"][0]
+                        print(f"   ✅ Clock command successful: {status_data['current_time']}")
                 else:
                     status_data["status"] = "api_error"
                     status_data["clock_error"] = error
+                    print(f"   ❌ Clock command failed: {error}")
                 
                 # Get device version
+                print(f"   🔍 Executing 'show version' command...")
                 success, response_data, error = self._execute_show_command("show version")
-                if success and response_data.get("_global_result", {}).get("status") == "0":
+                if success:
                     if response_data.get("_data"):
                         version_output = response_data["_data"]
                         # Parse version from output
@@ -721,10 +753,12 @@ class Aos8Persona(BasePersona):
                                 version_match = re.search(r'Version\s+([\d.]+)', line)
                                 if version_match:
                                     status_data["aos_version"] = version_match.group(1)
+                                    print(f"   ✅ Version command successful: {status_data['aos_version']}")
                                 break
                         status_data["version_output"] = version_output
                 else:
                     status_data["version_error"] = error
+                    print(f"   ❌ Version command failed: {error}")
                 
                 # Logout when done
                 self._logout()
