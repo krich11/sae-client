@@ -755,7 +755,15 @@ class Aos8Persona(BasePersona):
                                     status_data["aos_version"] = version_match.group(1)
                                     print(f"   ✅ Version command successful: {status_data['aos_version']}")
                                 break
-                        status_data["version_output"] = version_output
+                        # Process version output to handle escaped newlines and remove brackets
+                        if version_output and len(version_output) > 0:
+                            # Join the array and handle escaped newlines
+                            raw_output = version_output[0] if isinstance(version_output, list) else str(version_output)
+                            # Replace escaped newlines with actual newlines
+                            processed_output = raw_output.replace('\\n', '\n')
+                            status_data["version_output"] = processed_output
+                        else:
+                            status_data["version_output"] = "No version information available"
                 else:
                     status_data["version_error"] = error
                     print(f"   ❌ Version command failed: {error}")
@@ -783,7 +791,10 @@ class Aos8Persona(BasePersona):
         
         print(f"   📝 Device Status:")
         for key, value in status_data.items():
-            if isinstance(value, list):
+            if key == "version_output":
+                print(f"     {key}:")
+                print(f"       {value}")
+            elif isinstance(value, list):
                 print(f"     {key}:")
                 for item in value:
                     print(f"       {item}")
