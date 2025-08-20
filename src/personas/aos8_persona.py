@@ -46,37 +46,44 @@ class Aos8Persona(BasePersona):
         
         super().__init__(config)
         
-        print(f"🔧 {self.persona_name} Persona Initialized")
-        print(f"   Device IP: {self.device_ip}")
-        print(f"   API Protocol: {self.api_protocol}")
-        print(f"   API Port: {self.api_port}")
-        print(f"   Device Type: {self.device_type}")
-        print(f"   Simulation Mode: {self.simulation_mode}")
-        print(f"   Operation Delay: {self.operation_delay}s")
+        # Only show initialization details in debug mode
+        if self.config.get('debug_mode', False):
+            print(f"🔧 {self.persona_name} Persona Initialized")
+            print(f"   Device IP: {self.device_ip}")
+            print(f"   API Protocol: {self.api_protocol}")
+            print(f"   API Port: {self.api_port}")
+            print(f"   Device Type: {self.device_type}")
+            print(f"   Simulation Mode: {self.simulation_mode}")
+            print(f"   Operation Delay: {self.operation_delay}s")
     
     def _validate_config(self):
         """Validate AOS8 persona configuration."""
-        print(f"🔍 {self.persona_name} Persona: Validating Configuration")
+        if self.config.get('debug_mode', False):
+            print(f"🔍 {self.persona_name} Persona: Validating Configuration")
         
         required_fields = ['device_ip', 'username']
         for field in required_fields:
             if field not in self.config:
-                print(f"   ⚠️  Warning: Missing config field '{field}', using default")
+                if self.config.get('debug_mode', False):
+                    print(f"   ⚠️  Warning: Missing config field '{field}', using default")
         
         # Validate device type
         valid_types = ['controller', 'ap', 'switch']
         if self.device_type not in valid_types:
-            print(f"   ⚠️  Warning: Invalid device_type '{self.device_type}', using 'controller'")
+            if self.config.get('debug_mode', False):
+                print(f"   ⚠️  Warning: Invalid device_type '{self.device_type}', using 'controller'")
             self.device_type = 'controller'
         
 
         
         # Validate API settings
         if self.api_protocol not in ['http', 'https']:
-            print(f"   ⚠️  Warning: Invalid api_protocol '{self.api_protocol}', using 'https'")
+            if self.config.get('debug_mode', False):
+                print(f"   ⚠️  Warning: Invalid api_protocol '{self.api_protocol}', using 'https'")
             self.api_protocol = 'https'
         
-        print(f"   ✅ Configuration validation completed")
+        if self.config.get('debug_mode', False):
+            print(f"   ✅ Configuration validation completed")
     
     def _authenticate(self) -> bool:
         """
@@ -86,7 +93,8 @@ class Aos8Persona(BasePersona):
             bool: True if authentication successful
         """
         if self.simulation_mode:
-            print(f"   🔄 Simulating AOS8 authentication...")
+            if self.config.get('debug_mode', False):
+                print(f"   🔄 Simulating AOS8 authentication...")
             time.sleep(self.operation_delay)
             self.session_token = "simulated_token_12345"
             self.session_expiry = time.time() + 3600  # 1 hour from now
@@ -104,9 +112,10 @@ class Aos8Persona(BasePersona):
             # AOS8 login endpoint - GET with query parameters
             login_url = f"{self.api_protocol}://{self.device_ip}:{self.api_port}/v1/api/login?username={self.username}&password={self.password}"
             
-            print(f"   🔐 Authenticating with AOS8 device...")
-            print(f"   🌐 Login URL: {login_url}")
-            print(f"   📝 Using GET with query parameters")
+            if self.config.get('debug_mode', False):
+                print(f"   🔐 Authenticating with AOS8 device...")
+                print(f"   🌐 Login URL: {login_url}")
+                print(f"   📝 Using GET with query parameters")
             
             # Set headers for JSON response
             auth_session.headers.update({
@@ -115,7 +124,8 @@ class Aos8Persona(BasePersona):
             
             response = auth_session.get(login_url, timeout=self.api_timeout)
             
-            print(f"   📊 Login Response Status: {response.status_code}")
+            if self.config.get('debug_mode', False):
+                print(f"   📊 Login Response Status: {response.status_code}")
             
             if response.status_code == 200:
                 try:
@@ -127,10 +137,11 @@ class Aos8Persona(BasePersona):
                     self.session_expiry = time.time() + 900  # Default 900 seconds per documentation
                     
                     if self.session_token and self.csrf_token:
-                        print(f"   ✅ Authentication successful")
-                        print(f"   🎫 Session token (UIDARUBA): {self.session_token[:20]}...")
-                        print(f"   🛡️ CSRF token: {self.csrf_token[:20]}...")
-                        print(f"   ⏰ Token expires in: 900 seconds")
+                        if self.config.get('debug_mode', False):
+                            print(f"   ✅ Authentication successful")
+                            print(f"   🎫 Session token (UIDARUBA): {self.session_token[:20]}...")
+                            print(f"   🛡️ CSRF token: {self.csrf_token[:20]}...")
+                            print(f"   ⏰ Token expires in: 900 seconds")
                         
                         # CRITICAL FIX: Transfer session cookies to main session
                         if self.session is None:
@@ -143,35 +154,42 @@ class Aos8Persona(BasePersona):
                         
                         # Copy cookies from auth session to main session
                         self.session.cookies.update(auth_session.cookies)
-                        print(f"   🍪 Session cookies transferred: {len(auth_session.cookies)} cookies")
+                        if self.config.get('debug_mode', False):
+                            print(f"   🍪 Session cookies transferred: {len(auth_session.cookies)} cookies")
                         
                         return True
                     else:
-                        print(f"   ❌ Missing tokens in response")
-                        print(f"   📄 Response: {login_response}")
+                        if self.config.get('debug_mode', False):
+                            print(f"   ❌ Missing tokens in response")
+                            print(f"   📄 Response: {login_response}")
                         return False
                         
                 except json.JSONDecodeError:
-                    print(f"   ❌ Invalid JSON response from login")
-                    print(f"   📄 Raw response: {response.text}")
+                    if self.config.get('debug_mode', False):
+                        print(f"   ❌ Invalid JSON response from login")
+                        print(f"   📄 Raw response: {response.text}")
                     return False
             else:
-                print(f"   ❌ Login failed with status {response.status_code}")
-                try:
-                    error_data = response.json()
-                    print(f"   📄 Error: {error_data}")
-                except:
-                    print(f"   📄 Error: {response.text}")
+                if self.config.get('debug_mode', False):
+                    print(f"   ❌ Login failed with status {response.status_code}")
+                    try:
+                        error_data = response.json()
+                        print(f"   📄 Error: {error_data}")
+                    except:
+                        print(f"   📄 Error: {response.text}")
                 return False
                 
         except requests.exceptions.Timeout:
-            print(f"   ❌ Authentication timed out")
+            if self.config.get('debug_mode', False):
+                print(f"   ❌ Authentication timed out")
             return False
         except requests.exceptions.ConnectionError:
-            print(f"   ❌ Connection error during authentication")
+            if self.config.get('debug_mode', False):
+                print(f"   ❌ Connection error during authentication")
             return False
         except Exception as e:
-            print(f"   ❌ Authentication error: {e}")
+            if self.config.get('debug_mode', False):
+                print(f"   ❌ Authentication error: {e}")
             return False
     
     def _get_api_session(self):
@@ -189,7 +207,8 @@ class Aos8Persona(BasePersona):
             self.session_expiry is None or 
             time.time() >= self.session_expiry):
             
-            print(f"   🔄 Session expired or missing, re-authenticating...")
+            if self.config.get('debug_mode', False):
+                print(f"   🔄 Session expired or missing, re-authenticating...")
             if not self._authenticate():
                 raise Exception("Failed to authenticate with AOS8 device")
         
@@ -199,10 +218,11 @@ class Aos8Persona(BasePersona):
         })
         
         # Debug: Show current session state
-        print(f"   🔍 Session Debug:")
-        print(f"      🍪 Cookies: {len(self.session.cookies)} cookies")
-        print(f"      🛡️ CSRF Token: {self.csrf_token[:20] if self.csrf_token else 'None'}...")
-        print(f"      ⏰ Expires: {self.session_expiry - time.time():.0f}s remaining")
+        if self.config.get('debug_mode', False):
+            print(f"   🔍 Session Debug:")
+            print(f"      🍪 Cookies: {len(self.session.cookies)} cookies")
+            print(f"      🛡️ CSRF Token: {self.csrf_token[:20] if self.csrf_token else 'None'}...")
+            print(f"      ⏰ Expires: {self.session_expiry - time.time():.0f}s remaining")
         
         return self.session
     
@@ -220,7 +240,8 @@ class Aos8Persona(BasePersona):
             tuple: (success, response_data, error_message)
         """
         if self.simulation_mode:
-            print(f"   🔄 Simulating AOS8 API call: {method} {endpoint}")
+            if self.config.get('debug_mode', False):
+                print(f"   🔄 Simulating AOS8 API call: {method} {endpoint}")
             time.sleep(self.operation_delay)
             return True, {"status": "success", "message": f"Simulated {method} {endpoint}"}, ""
         
@@ -230,7 +251,8 @@ class Aos8Persona(BasePersona):
             # Build URL without query parameters (CSRF token is in headers)
             url = f"{self.api_protocol}://{self.device_ip}:{self.api_port}/v1{endpoint}"
             
-            print(f"   🌐 API Call: {method} {url}")
+            if self.config.get('debug_mode', False):
+                print(f"   🌐 API Call: {method} {url}")
             
             if timeout is None:
                 timeout = self.api_timeout
@@ -246,7 +268,8 @@ class Aos8Persona(BasePersona):
             else:
                 return False, {}, f"Unsupported HTTP method: {method}"
             
-            print(f"   📊 Response Status: {response.status_code}")
+            if self.config.get('debug_mode', False):
+                print(f"   📊 Response Status: {response.status_code}")
             
             if response.status_code in [200, 201, 202]:
                 try:
@@ -483,7 +506,8 @@ class Aos8Persona(BasePersona):
             tuple: (success, response_data, error_message)
         """
         if self.simulation_mode:
-            print(f"   🔄 Simulating AOS8 show command: {command}")
+            if self.config.get('debug_mode', False):
+                print(f"   🔄 Simulating AOS8 show command: {command}")
             time.sleep(self.operation_delay)
             
             # Return simulated response based on command
@@ -530,17 +554,20 @@ class Aos8Persona(BasePersona):
                 "UIDARUBA": self.session_token
             }
             
-            print(f"   🌐 Show Command: {command}")
-            print(f"   🔗 URL: {url}")
+            if self.config.get('debug_mode', False):
+                print(f"   🌐 Show Command: {command}")
+                print(f"   🔗 URL: {url}")
             
             response = session.get(url, params=params, timeout=self.api_timeout)
             
-            print(f"   📊 Response Status: {response.status_code}")
+            if self.config.get('debug_mode', False):
+                print(f"   📊 Response Status: {response.status_code}")
             
             if response.status_code == 200:
                 try:
                     response_data = response.json()
-                    print(f"   📄 Response Data: {json.dumps(response_data, indent=2)[:500]}...")
+                    if self.config.get('debug_mode', False):
+                        print(f"   📄 Response Data: {json.dumps(response_data, indent=2)[:500]}...")
                     
                     # Check if the command was successful
                     # Some AOS8 devices return data directly without _global_result wrapper
@@ -550,21 +577,25 @@ class Aos8Persona(BasePersona):
                             return True, response_data, ""
                         else:
                             error_msg = f"Command failed: {global_result.get('status_str', 'Unknown error')}"
-                            print(f"   ❌ {error_msg}")
+                            if self.config.get('debug_mode', False):
+                                print(f"   ❌ {error_msg}")
                             return False, response_data, error_msg
                     else:
                         # Direct data response - assume success if we have _data
                         if '_data' in response_data and response_data['_data']:
-                            print(f"   ✅ Command successful (direct response)")
+                            if self.config.get('debug_mode', False):
+                                print(f"   ✅ Command successful (direct response)")
                             return True, response_data, ""
                         else:
                             error_msg = "Command failed: No data returned"
-                            print(f"   ❌ {error_msg}")
+                            if self.config.get('debug_mode', False):
+                                print(f"   ❌ {error_msg}")
                             return False, response_data, error_msg
                         
                 except json.JSONDecodeError:
                     error_msg = f"Invalid JSON response: {response.text}"
-                    print(f"   ❌ {error_msg}")
+                    if self.config.get('debug_mode', False):
+                        print(f"   ❌ {error_msg}")
                     return False, {}, error_msg
             else:
                 error_msg = f"Show command failed with status {response.status_code}"
@@ -573,7 +604,8 @@ class Aos8Persona(BasePersona):
                     error_msg += f": {error_data.get('message', 'Unknown error')}"
                 except:
                     error_msg += f": {response.text}"
-                print(f"   ❌ {error_msg}")
+                if self.config.get('debug_mode', False):
+                    print(f"   ❌ {error_msg}")
                 return False, {}, error_msg
                 
         except requests.exceptions.Timeout:
@@ -591,7 +623,8 @@ class Aos8Persona(BasePersona):
             bool: True if logout was successful
         """
         if self.simulation_mode:
-            print(f"   🔄 Simulating AOS8 logout...")
+            if self.config.get('debug_mode', False):
+                print(f"   🔄 Simulating AOS8 logout...")
             time.sleep(self.operation_delay)
             self.session_token = None
             self.session_expiry = None
@@ -603,23 +636,27 @@ class Aos8Persona(BasePersona):
                 # AOS8 logout endpoint
                 url = f"{self.api_protocol}://{self.device_ip}:{self.api_port}/v1/api/logout"
                 
-                print(f"   🚪 Logging out from AOS8 device...")
+                if self.config.get('debug_mode', False):
+                    print(f"   🚪 Logging out from AOS8 device...")
                 
                 response = self.session.post(url, timeout=self.api_timeout)
                 
                 if response.status_code in [200, 204]:
-                    print(f"   ✅ Logout successful")
+                    if self.config.get('debug_mode', False):
+                        print(f"   ✅ Logout successful")
                     # Clear session data
                     self.session_token = None
                     self.session_expiry = None
                     self.csrf_token = None
                     return True
                 else:
-                    print(f"   ⚠️  Logout failed with status {response.status_code}")
+                    if self.config.get('debug_mode', False):
+                        print(f"   ⚠️  Logout failed with status {response.status_code}")
                     return False
                     
         except Exception as e:
-            print(f"   ⚠️  Logout error: {e}")
+            if self.config.get('debug_mode', False):
+                print(f"   ⚠️  Logout error: {e}")
             return False
     
     def cleanup_old_keys(self) -> bool:
@@ -704,9 +741,10 @@ class Aos8Persona(BasePersona):
         Returns:
             Dict containing device status information
         """
-        print(f"📊 {self.persona_name} Persona: Get Device Status")
-        print(f"   Device IP: {self.device_ip}")
-        print(f"   Device Type: {self.device_type}")
+        if self.config.get('debug_mode', False):
+            print(f"📊 {self.persona_name} Persona: Get Device Status")
+            print(f"   Device IP: {self.device_ip}")
+            print(f"   Device Type: {self.device_type}")
         
         status_data = {
             "device_ip": self.device_ip,
@@ -721,26 +759,31 @@ class Aos8Persona(BasePersona):
         if not self.simulation_mode:
             # Authenticate first
             if not self._authenticate():
-                print(f"   ❌ Authentication failed")
+                if self.config.get('debug_mode', False):
+                    print(f"   ❌ Authentication failed")
                 status_data["status"] = "authentication_failed"
                 return status_data
             
             try:
                 # Get device clock/time for status
-                print(f"   🔍 Executing 'show clock' command...")
+                if self.config.get('debug_mode', False):
+                    print(f"   🔍 Executing 'show clock' command...")
                 success, response_data, error = self._execute_show_command("show clock")
                 if success:
                     status_data["status"] = "operational"
                     if response_data.get("_data"):
                         status_data["current_time"] = response_data["_data"][0]
-                        print(f"   ✅ Clock command successful: {status_data['current_time']}")
+                        if self.config.get('debug_mode', False):
+                            print(f"   ✅ Clock command successful: {status_data['current_time']}")
                 else:
                     status_data["status"] = "api_error"
                     status_data["clock_error"] = error
-                    print(f"   ❌ Clock command failed: {error}")
+                    if self.config.get('debug_mode', False):
+                        print(f"   ❌ Clock command failed: {error}")
                 
                 # Get device version
-                print(f"   🔍 Executing 'show version' command...")
+                if self.config.get('debug_mode', False):
+                    print(f"   🔍 Executing 'show version' command...")
                 success, response_data, error = self._execute_show_command("show version")
                 if success:
                     if response_data.get("_data"):
@@ -753,7 +796,8 @@ class Aos8Persona(BasePersona):
                                 version_match = re.search(r'Version\s+([\d.]+)', line)
                                 if version_match:
                                     status_data["aos_version"] = version_match.group(1)
-                                    print(f"   ✅ Version command successful: {status_data['aos_version']}")
+                                    if self.config.get('debug_mode', False):
+                                        print(f"   ✅ Version command successful: {status_data['aos_version']}")
                                 break
                         # Process version output to handle escaped newlines and remove brackets
                         if version_output and len(version_output) > 0:
@@ -766,13 +810,15 @@ class Aos8Persona(BasePersona):
                             status_data["version_output"] = "No version information available"
                 else:
                     status_data["version_error"] = error
-                    print(f"   ❌ Version command failed: {error}")
+                    if self.config.get('debug_mode', False):
+                        print(f"   ❌ Version command failed: {error}")
                 
                 # Logout when done
                 self._logout()
                 
             except Exception as e:
-                print(f"   ❌ Error getting device status: {e}")
+                if self.config.get('debug_mode', False):
+                    print(f"   ❌ Error getting device status: {e}")
                 status_data["status"] = "error"
                 status_data["error"] = str(e)
         else:
@@ -789,23 +835,24 @@ class Aos8Persona(BasePersona):
                 ]
             })
         
-        print(f"   📝 Device Status:")
-        for key, value in status_data.items():
-            if key == "version_output":
-                print(f"     {key}:")
-                print(f"       {value}")
-            elif isinstance(value, list):
-                print(f"     {key}:")
-                for item in value:
-                    print(f"       {item}")
-            elif isinstance(value, dict):
-                print(f"     {key}:")
-                for sub_key, sub_value in value.items():
-                    print(f"       {sub_key}: {sub_value}")
-            else:
-                print(f"     {key}: {value}")
-        
-        print(f"   ✅ Device status retrieved successfully")
+        if self.config.get('debug_mode', False):
+            print(f"   📝 Device Status:")
+            for key, value in status_data.items():
+                if key == "version_output":
+                    print(f"     {key}:")
+                    print(f"       {value}")
+                elif isinstance(value, list):
+                    print(f"     {key}:")
+                    for item in value:
+                        print(f"       {item}")
+                elif isinstance(value, dict):
+                    print(f"     {key}:")
+                    for sub_key, sub_value in value.items():
+                        print(f"       {sub_key}: {sub_value}")
+                else:
+                    print(f"     {key}: {value}")
+            
+            print(f"   ✅ Device status retrieved successfully")
         return status_data
     
     def test_connection(self) -> bool:
@@ -815,33 +862,37 @@ class Aos8Persona(BasePersona):
         Returns:
             bool: True if connection is successful
         """
-        print(f"🔌 {self.persona_name} Persona: Test Connection")
-        print(f"   Device IP: {self.device_ip}")
-        print(f"   API Protocol: {self.api_protocol}")
-        print(f"   API Port: {self.api_port}")
-        print(f"   Username: {self.username}")
-        
-        # AOS8 connection test
-        print(f"   📝 Connection test steps:")
-        print(f"     1. Check device availability")
-        print(f"     2. Verify API connectivity")
-        print(f"     3. Authenticate and get session token")
-        print(f"     4. Validate AOS8 API response")
+        if self.config.get('debug_mode', False):
+            print(f"🔌 {self.persona_name} Persona: Test Connection")
+            print(f"   Device IP: {self.device_ip}")
+            print(f"   API Protocol: {self.api_protocol}")
+            print(f"   API Port: {self.api_port}")
+            print(f"   Username: {self.username}")
+            
+            # AOS8 connection test
+            print(f"   📝 Connection test steps:")
+            print(f"     1. Check device availability")
+            print(f"     2. Verify API connectivity")
+            print(f"     3. Authenticate and get session token")
+            print(f"     4. Validate AOS8 API response")
         
         # First authenticate
         if not self._authenticate():
-            print(f"   ❌ Authentication failed")
+            if self.config.get('debug_mode', False):
+                print(f"   ❌ Authentication failed")
             return False
         
         # Test connection with AOS8 hostname API
         success, response_data, error = self._execute_aos8_api_call("/configuration/object/hostname?config_path=%2Fmm", "GET")
         
         if success:
-            print(f"   ✅ Connection test successful")
-            print(f"   📄 API response: {json.dumps(response_data, indent=2)[:200]}...")
+            if self.config.get('debug_mode', False):
+                print(f"   ✅ Connection test successful")
+                print(f"   📄 API response: {json.dumps(response_data, indent=2)[:200]}...")
         else:
-            print(f"   ❌ Connection test failed")
-            print(f"   Error: {error}")
+            if self.config.get('debug_mode', False):
+                print(f"   ❌ Connection test failed")
+                print(f"   Error: {error}")
         
         return success
     
