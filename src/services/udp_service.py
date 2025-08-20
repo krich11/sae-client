@@ -14,11 +14,11 @@ from pathlib import Path
 
 from ..config import config_manager
 from ..models.sync_models import (
-    SignedMessage, BaseSyncMessage, SyncSession, SyncState,
+    SignedMessage, BaseSyncMessage, SyncSession,
     MessageType, SyncConfig
 )
 from ..utils.message_signer import message_signer
-from .sync_state_machine import sync_state_machine, MessageType as StateMessageType
+from .sync_state_machine import sync_state_machine, MessageType as StateMessageType, SyncState
 
 
 class UDPService:
