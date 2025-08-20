@@ -460,6 +460,9 @@ class UDPService:
         # Request keys from KME
         self._request_keys_from_kme(message)
         
+        # Mark notified keys as ASSIGNED in local storage
+        self._mark_notified_keys_as_assigned(message)
+        
         # Send acknowledgment
         self._send_key_acknowledgment(message, addr)
     
@@ -918,6 +921,46 @@ class UDPService:
                 
         except Exception as e:
             self.logger.error(f"Error requesting keys from KME: {e}")
+    
+    def _mark_notified_keys_as_assigned(self, message):
+        """Mark notified keys as ASSIGNED in local storage."""
+        try:
+            from ..services.key_service import key_service
+            
+            # Debug logging for key assignment
+            if self.config.debug_mode:
+                self.logger.info(f"SYNC KEY ASSIGNMENT:")
+                self.logger.info(f"  Key IDs to mark as ASSIGNED: {message.key_ids}")
+                self.logger.info(f"  Master SAE: {message.master_sae_id}")
+                self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+            
+            # Mark each notified key as ASSIGNED
+            assigned_count = 0
+            for key_id in message.key_ids:
+                try:
+                    # Check if key exists in local storage
+                    key = key_service.get_key(key_id)
+                    if key:
+                        # Mark key as ASSIGNED with notification metadata
+                        success = key_service.mark_key_as_notified(
+                            key_id=key_id,
+                            slave_sae_id=message.slave_sae_id,
+                            rotation_timestamp=message.rotation_timestamp
+                        )
+                        if success:
+                            assigned_count += 1
+                            self.logger.info(f"Marked key {key_id} as ASSIGNED")
+                        else:
+                            self.logger.warning(f"Failed to mark key {key_id} as ASSIGNED")
+                    else:
+                        self.logger.warning(f"Key {key_id} not found in local storage - will be marked when received from KME")
+                except Exception as e:
+                    self.logger.error(f"Error marking key {key_id} as ASSIGNED: {e}")
+            
+            self.logger.info(f"Marked {assigned_count} out of {len(message.key_ids)} keys as ASSIGNED")
+            
+        except Exception as e:
+            self.logger.error(f"Error marking notified keys as ASSIGNED: {e}")
     
     def _send_key_acknowledgment(self, message, addr):
         """Send key acknowledgment message."""
