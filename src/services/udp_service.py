@@ -965,16 +965,16 @@ class UDPService:
                     # Mark key as in production after successful rotation
                     from src.services.key_service import key_service
                     
-                    # First, mark any existing in-production keys as rolled
+                    # Step 1: Mark the new key as in production FIRST
+                    key_service.mark_key_in_production(actual_key_id)
+                    self.logger.info(f"Marked key {actual_key_id} as in production")
+                    
+                    # Step 2: Only AFTER new key is in production, mark old keys as rolled
                     in_production_keys = key_service.get_in_production_keys()
                     for old_key in in_production_keys:
                         if old_key.key_id != actual_key_id:  # Don't mark the new key as rolled
                             key_service.mark_key_rolled(old_key.key_id, actual_key_id)
                             self.logger.info(f"Marked old key {old_key.key_id} as rolled (replaced by {actual_key_id})")
-                    
-                    # Mark the new key as in production
-                    key_service.mark_key_in_production(actual_key_id)
-                    self.logger.info(f"Marked key {actual_key_id} as in production")
                 else:
                     self.logger.error(f"Key rotation failed using {persona_name} persona")
             else:
