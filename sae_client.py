@@ -38,7 +38,10 @@ COMMAND_HIERARCHY = {
             '[unavailable]': {},
             '[assigned]': {},
             '[unassigned]': {},
-            '[keyid <key_id>]': {}
+            '[in-production]': {},
+            '[rolled]': {},
+            '[keyid <key_id>]': {},
+            '[saeid <sae_id>]': {}
         },
         'sync': {'status': {}},
         'scheduled': {},
@@ -1234,6 +1237,24 @@ def handle_show_keys(args):
                 # Show only unassigned keys (not notified to slaves)
                 keys = key_service.get_unassigned_keys()
                 title = "Unassigned Keys"
+            elif filter_type == 'in-production':
+                # Show only keys currently in production (actively being used)
+                keys = key_service.get_in_production_keys()
+                title = "Keys In Production"
+            elif filter_type == 'rolled':
+                # Show only keys that have been rolled (replaced by new keys)
+                keys = key_service.get_rolled_keys()
+                title = "Rolled Keys"
+            elif filter_type == 'saeid' and len(args) >= 2:
+                # Filter by specific SAE ID
+                sae_id = args[1]
+                all_keys = key_service.get_all_keys()
+                filtered_keys = [key for key in all_keys if key.allowed_sae_id == sae_id]
+                if filtered_keys:
+                    print_keys(filtered_keys, f"Keys for SAE {sae_id}")
+                else:
+                    console.print(f"[yellow]No keys found for SAE ID: {sae_id}[/yellow]")
+                return
             elif filter_type == 'keyid' and len(args) >= 2:
                 # Filter by specific key ID
                 key_id = args[1]

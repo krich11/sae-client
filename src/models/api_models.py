@@ -11,10 +11,13 @@ from enum import Enum
 
 class KeyStatus(str, Enum):
     """Key status enumeration."""
-    AVAILABLE = "available"
-    USED = "used"
-    EXPIRED = "expired"
-    REVOKED = "revoked"
+    AVAILABLE = "available"      # Key is available for use
+    ASSIGNED = "assigned"        # Key has been assigned to a slave (notified)
+    IN_PRODUCTION = "in_production"  # Key has been rolled and is actively in use
+    USED = "used"               # Key has been used (deprecated, use IN_PRODUCTION instead)
+    EXPIRED = "expired"         # Key has expired or been replaced during rotation
+    REVOKED = "revoked"         # Key has been revoked for security reasons
+    ROLLED = "rolled"           # Key has been rolled (transitional state)
 
 
 class KeyType(str, Enum):

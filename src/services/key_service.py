@@ -357,6 +357,9 @@ class KeyManagementService:
             
             if not already_notified:
                 key.metadata['notifications'].append(notification_info)
+                # Also update the key status to ASSIGNED
+                if key.status == KeyStatus.AVAILABLE:
+                    key.status = KeyStatus.ASSIGNED
                 self.storage.save_key(key)
                 self.logger.info(f"Marked key {key_id} as notified to slave {slave_sae_id}")
                 return True
@@ -380,11 +383,12 @@ class KeyManagementService:
         assigned_keys = []
         
         for key in self.keys.values():
-            # Check if key has been notified to any slave
+            # Check if key has been assigned (either by status or metadata)
             is_assigned = (
-                key.metadata and 
-                'notifications' in key.metadata and 
-                len(key.metadata['notifications']) > 0
+                key.status == KeyStatus.ASSIGNED or
+                (key.metadata and 
+                 'notifications' in key.metadata and 
+                 len(key.metadata['notifications']) > 0)
             )
             
             if is_assigned:
@@ -410,11 +414,12 @@ class KeyManagementService:
         unassigned_keys = []
         
         for key in self.keys.values():
-            # Check if key has NOT been notified to any slave
+            # Check if key has NOT been assigned (either by status or metadata)
             is_assigned = (
-                key.metadata and 
-                'notifications' in key.metadata and 
-                len(key.metadata['notifications']) > 0
+                key.status == KeyStatus.ASSIGNED or
+                (key.metadata and 
+                 'notifications' in key.metadata and 
+                 len(key.metadata['notifications']) > 0)
             )
             
             if not is_assigned:
@@ -425,6 +430,122 @@ class KeyManagementService:
                         unassigned_keys.append(key)
         
         return unassigned_keys
+    
+    def mark_key_in_production(self, key_id: str) -> bool:
+        """
+        Mark a key as in production (actively being used after roll).
+        
+        Args:
+            key_id: Key identifier
+            
+        Returns:
+            bool: True if key was marked as in production, False otherwise
+        """
+        key = self.get_key(key_id)
+        if key:
+            key.status = KeyStatus.IN_PRODUCTION
+            if key.metadata is None:
+                key.metadata = {}
+            key.metadata['production_started_at'] = datetime.now().isoformat()
+            self.storage.save_key(key)
+            self.logger.info(f"Marked key {key_id} as in production")
+            return True
+        return False
+    
+    def mark_key_rolled(self, key_id: str, replacement_key_id: str = None) -> bool:
+        """
+        Mark a key as rolled (replaced by a new key).
+        
+        Args:
+            key_id: Key identifier
+            replacement_key_id: ID of the key that replaced this one (optional)
+            
+        Returns:
+            bool: True if key was marked as rolled, False otherwise
+        """
+        key = self.get_key(key_id)
+        if key:
+            key.status = KeyStatus.ROLLED
+            if key.metadata is None:
+                key.metadata = {}
+            key.metadata['rolled_at'] = datetime.now().isoformat()
+            if replacement_key_id:
+                key.metadata['replacement_key_id'] = replacement_key_id
+            self.storage.save_key(key)
+            self.logger.info(f"Marked key {key_id} as rolled")
+            return True
+        return False
+    
+    def mark_key_expired_from_rotation(self, key_id: str, replacement_key_id: str = None) -> bool:
+        """
+        Mark a key as expired due to rotation (replaced by a new key).
+        
+        Args:
+            key_id: Key identifier
+            replacement_key_id: ID of the key that replaced this one (optional)
+            
+        Returns:
+            bool: True if key was marked as expired, False otherwise
+        """
+        key = self.get_key(key_id)
+        if key:
+            key.status = KeyStatus.EXPIRED
+            if key.metadata is None:
+                key.metadata = {}
+            key.metadata['expired_at'] = datetime.now().isoformat()
+            key.metadata['expired_reason'] = 'rotation'
+            if replacement_key_id:
+                key.metadata['replacement_key_id'] = replacement_key_id
+            self.storage.save_key(key)
+            self.logger.info(f"Marked key {key_id} as expired from rotation")
+            return True
+        return False
+    
+    def get_in_production_keys(self, key_type: Optional[KeyType] = None, allowed_sae_id: Optional[str] = None) -> List[LocalKey]:
+        """
+        Get keys that are currently in production (actively being used).
+        
+        Args:
+            key_type: Optional key type filter
+            allowed_sae_id: Optional SAE ID filter (only return keys allowed for this SAE)
+            
+        Returns:
+            List[LocalKey]: List of keys in production
+        """
+        in_production_keys = []
+        
+        for key in self.keys.values():
+            if key.status == KeyStatus.IN_PRODUCTION:
+                # Filter by key type
+                if key_type is None or key.key_type == key_type:
+                    # Filter by allowed SAE ID
+                    if allowed_sae_id is None or key.allowed_sae_id == allowed_sae_id:
+                        in_production_keys.append(key)
+        
+        return in_production_keys
+    
+    def get_rolled_keys(self, key_type: Optional[KeyType] = None, allowed_sae_id: Optional[str] = None) -> List[LocalKey]:
+        """
+        Get keys that have been rolled (replaced by new keys).
+        
+        Args:
+            key_type: Optional key type filter
+            allowed_sae_id: Optional SAE ID filter (only return keys allowed for this SAE)
+            
+        Returns:
+            List[LocalKey]: List of rolled keys
+        """
+        rolled_keys = []
+        
+        for key in self.keys.values():
+            if key.status == KeyStatus.ROLLED:
+                # Filter by key type
+                if key_type is None or key.key_type == key_type:
+                    # Filter by allowed SAE ID
+                    if allowed_sae_id is None or key.allowed_sae_id == allowed_sae_id:
+                        rolled_keys.append(key)
+        
+        return rolled_keys
     
     def use_key(self, key_id: str) -> Optional[LocalKey]:
         """
@@ -516,8 +637,12 @@ class KeyManagementService:
         """
         total_keys = len(self.keys)
         available_keys = len([k for k in self.keys.values() if k.status == KeyStatus.AVAILABLE])
+        assigned_keys = len([k for k in self.keys.values() if k.status == KeyStatus.ASSIGNED])
+        in_production_keys = len([k for k in self.keys.values() if k.status == KeyStatus.IN_PRODUCTION])
         used_keys = len([k for k in self.keys.values() if k.status == KeyStatus.USED])
+        rolled_keys = len([k for k in self.keys.values() if k.status == KeyStatus.ROLLED])
         expired_keys = len([k for k in self.keys.values() if k.status == KeyStatus.EXPIRED])
+        revoked_keys = len([k for k in self.keys.values() if k.status == KeyStatus.REVOKED])
         
         encryption_keys = len([k for k in self.keys.values() if k.key_type == KeyType.ENCRYPTION])
         decryption_keys = len([k for k in self.keys.values() if k.key_type == KeyType.DECRYPTION])
@@ -525,8 +650,12 @@ class KeyManagementService:
         return {
             'total_keys': total_keys,
             'available_keys': available_keys,
+            'assigned_keys': assigned_keys,
+            'in_production_keys': in_production_keys,
             'used_keys': used_keys,
+            'rolled_keys': rolled_keys,
             'expired_keys': expired_keys,
+            'revoked_keys': revoked_keys,
             'encryption_keys': encryption_keys,
             'decryption_keys': decryption_keys,
             'kme_keys': len([k for k in self.keys.values() if k.source == 'kme']),
