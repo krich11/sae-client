@@ -28,6 +28,7 @@ class MessageType(Enum):
     NOTIFY = "key_notification"
     NOTIFY_ACK = "key_acknowledgment"
     ACK = "sync_confirmation"
+    ROTATION_COMPLETED = "rotation_completed"
     ERROR = "error"
 
 
@@ -88,6 +89,10 @@ class SyncStateMachine:
                 if message_type == MessageType.NOTIFY:
                     # Master can always send initial notification
                     return True, "New session, accepting initial notification"
+                elif message_type == MessageType.ROTATION_COMPLETED:
+                    # Allow rotation completed messages even without active session
+                    # This handles the case where session was cleaned up after rotation
+                    return True, "Accepting rotation completed notification without active session"
                 else:
                     return False, f"No active session for {message_type.value}"
             
@@ -169,12 +174,16 @@ class SyncStateMachine:
         elif current_state.value == SyncState.CONFIRMED.value:
             if message_type == MessageType.NOTIFY and is_slave:
                 return True, "Slave accepting new notification"
+            elif message_type == MessageType.ROTATION_COMPLETED and is_master:
+                return True, "Master accepting rotation completed notification"
             else:
                 return False, f"Invalid message {message_type.value} in {current_state.value} state"
         
         elif current_state.value == SyncState.ROTATING.value:
             if message_type == MessageType.NOTIFY and is_slave:
                 return True, "Slave accepting new notification during rotation"
+            elif message_type == MessageType.ROTATION_COMPLETED and is_master:
+                return True, "Master accepting rotation completed notification"
             else:
                 return False, f"Invalid message {message_type.value} in {current_state.value} state"
         
