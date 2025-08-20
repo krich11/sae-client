@@ -1220,6 +1220,10 @@ class UDPService:
             
             if success:
                 self.logger.info("Sent sync confirmation")
+                
+                # Master schedules its own rotation after sending sync confirmation
+                self.logger.info("Master scheduling its own key rotation")
+                self._schedule_key_rotation_for_master(session)
             else:
                 self.logger.error("Failed to send sync confirmation")
                 
@@ -1789,6 +1793,188 @@ class UDPService:
             for key, value in data.items():
                 print(f"  {key}: {value}")
             print()
+    
+    def _schedule_key_rotation_for_master(self, session):
+        """Schedule key rotation for master SAE at the specified timestamp."""
+        try:
+            import time
+            
+            if not session or not session.rotation_timestamp:
+                self.logger.error("Session or rotation timestamp not found for master rotation")
+                return
+            
+            # Calculate delay until rotation
+            current_time = int(time.time())
+            delay = session.rotation_timestamp - current_time
+            
+            # Debug logging for master rotation scheduling
+            if self.config.debug_mode:
+                self.logger.info(f"MASTER ROTATION SCHEDULING:")
+                self.logger.info(f"  Current Time: {current_time} ({time.ctime(current_time)})")
+                self.logger.info(f"  Final Rotation Time: {session.rotation_timestamp} ({time.ctime(session.rotation_timestamp)})")
+                self.logger.info(f"  Delay: {delay} seconds")
+                self.logger.info(f"  Delay: {delay/60:.1f} minutes")
+                self.logger.info(f"  Session ID: {session.session_id}")
+            
+            if delay <= 0:
+                self.logger.warning("Final rotation timestamp is in the past, rotating immediately")
+                self._execute_master_key_rotation(session)
+            else:
+                self.logger.info(f"Master scheduling key rotation in {delay} seconds")
+                
+                # Schedule rotation
+                timer = threading.Timer(delay, self._execute_master_key_rotation, args=[session])
+                timer.daemon = True
+                timer.start()
+                
+                # Debug logging for timer creation
+                if self.config.debug_mode:
+                    self.logger.info(f"MASTER TIMER CREATED:")
+                    self.logger.info(f"  Timer ID: {id(timer)}")
+                    self.logger.info(f"  Scheduled: {time.ctime(time.time() + delay)}")
+                    self.logger.info(f"  Daemon: {timer.daemon}")
+                
+        except Exception as e:
+            self.logger.error(f"Error scheduling master key rotation: {e}")
+    
+    def _execute_master_key_rotation(self, session):
+        """Execute key rotation for master SAE."""
+        try:
+            # Debug logging for master key rotation execution
+            if self.config.debug_mode:
+                self.logger.info(f"MASTER KEY ROTATION EXECUTING:")
+                self.logger.info(f"  Session ID: {session.session_id}")
+                self.logger.info(f"  Master SAE: {session.master_sae_id}")
+                self.logger.info(f"  Slave SAE: {session.slave_sae_id}")
+                self.logger.info(f"  Key IDs: {session.key_ids}")
+                self.logger.info(f"  Execution Time: {datetime.now()}")
+                self.logger.info(f"  Scheduled Time: {time.ctime(session.rotation_timestamp)}")
+            
+            self.logger.info("Executing master key rotation")
+            
+            # Update session state
+            session.state = SyncState.ROTATING
+            session.updated_at = datetime.now()
+            
+            # Debug logging for session state update
+            if self.config.debug_mode:
+                self.logger.info(f"MASTER SESSION ROTATING:")
+                self.logger.info(f"  Session ID: {session.session_id}")
+                self.logger.info(f"  State: {session.state}")
+                self.logger.info(f"  Key IDs: {session.key_ids}")
+                self.logger.info(f"  Updated: {session.updated_at}")
+            
+            # Execute device-specific key rotation for master
+            self._execute_device_rotation_for_master(session)
+            
+            # Clean up session after rotation
+            if session.session_id in self.sessions:
+                del self.sessions[session.session_id]
+                
+                # Debug logging for session cleanup
+                if self.config.debug_mode:
+                    self.logger.info(f"MASTER SESSION CLEANED UP:")
+                    self.logger.info(f"  Session ID: {session.session_id}")
+                    self.logger.info(f"  Cleanup Time: {datetime.now()}")
+                
+        except Exception as e:
+            self.logger.error(f"Error executing master key rotation: {e}")
+    
+    def _execute_device_rotation_for_master(self, session):
+        """Execute device-specific key rotation for master SAE using persona plugin."""
+        try:
+            # Load persona plugin using main configuration
+            from src.config import config_manager
+            persona_name = config_manager.config.device_persona
+            persona = self._load_persona_plugin(persona_name)
+            
+            if persona and session.key_ids:
+                # Use the first key ID from the session
+                actual_key_id = session.key_ids[0]
+                self.logger.info(f"Master using actual key ID for rotation: {actual_key_id}")
+                
+                # Create rotation context with flexible parameters
+                from src.personas.base_persona import RotationContext
+                
+                # Create rotation context with persona configuration
+                persona_config = persona.config if hasattr(persona, 'config') else {}
+                context = RotationContext(
+                    key_id=actual_key_id,
+                    rotation_timestamp=session.rotation_timestamp,
+                    device_interface=persona_config.get('device_interface'),
+                    encryption_algorithm=persona_config.get('encryption_algorithm', 'AES-256'),
+                    key_priority=persona_config.get('key_priority', 'normal'),
+                    rollback_on_failure=persona_config.get('rollback_on_failure', True),
+                    notification_url=persona_config.get('notification_url'),
+                    notification_headers=persona_config.get('notification_headers', {}),
+                    session_id=session.session_id,
+                    master_sae_id=session.master_sae_id,
+                    slave_sae_id=session.slave_sae_id,
+                    custom_metadata=persona_config.get('custom_metadata', {}),
+                    advance_warning_seconds=persona_config.get('advance_warning_seconds', 30),
+                    cleanup_delay_seconds=persona_config.get('cleanup_delay_seconds', 60),
+                    validate_key_before_rotation=persona_config.get('validate_key_before_rotation', True),
+                    validate_device_after_rotation=persona_config.get('validate_device_after_rotation', True)
+                )
+                
+                # Execute rotation with context
+                success = persona.rotate_key(context)
+                if success:
+                    self.logger.info(f"Master executed key rotation using {persona_name} persona")
+                    
+                    # Mark key as in production after successful rotation
+                    from src.services.key_service import key_service
+                    
+                    # Step 1: Mark the new key as in production FIRST
+                    key_service.mark_key_in_production(actual_key_id)
+                    self.logger.info(f"Master marked key {actual_key_id} as in production")
+                    
+                    # Step 2: Only AFTER new key is in production, mark old keys as rolled
+                    in_production_keys = key_service.get_in_production_keys()
+                    for old_key in in_production_keys:
+                        if old_key.key_id != actual_key_id:  # Don't mark the new key as rolled
+                            key_service.mark_key_rolled(old_key.key_id, actual_key_id)
+                            self.logger.info(f"Master marked old key {old_key.key_id} as rolled (replaced by {actual_key_id})")
+                    
+                    # Step 3: Master waits for slave to complete rotation and notify
+                    self.logger.info("Master rotation completed - waiting for slave rotation completion")
+                else:
+                    self.logger.error(f"Master key rotation failed using {persona_name} persona")
+            else:
+                self.logger.warning(f"Master: No persona plugin found for: {persona_name}")
+                
+        except Exception as e:
+            self.logger.error(f"Error executing master device rotation: {e}")
+    
+    def _listener_loop(self):
+        """Main listener loop."""
+        self.logger.info("UDP listener loop started")
+        
+        while self.is_running:
+            try:
+                # Set socket timeout for clean shutdown
+                self.socket.settimeout(1.0)
+                
+                # Receive message
+                data, addr = self.socket.recvfrom(self.sync_config.max_message_size)
+                
+                # Process message in separate thread
+                thread = threading.Thread(
+                    target=self._process_message,
+                    args=(data, addr),
+                    daemon=True
+                )
+                thread.start()
+                
+            except socket.timeout:
+                # Timeout is expected, continue loop
+                continue
+            except Exception as e:
+                if self.is_running:
+                    self.logger.error(f"Error in listener loop: {e}")
+                break
+        
+        self.logger.info("UDP listener loop stopped")
 
 
 # Global UDP service instance
