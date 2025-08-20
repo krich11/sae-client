@@ -921,13 +921,25 @@ class UDPService:
             persona = self._load_persona_plugin(persona_name)
             
             if persona:
+                # Get the actual key ID from the session
+                session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
+                session = self.sessions.get(session_id)
+                
+                if not session or not session.key_ids:
+                    self.logger.error(f"No key IDs found in session {session_id}")
+                    return
+                
+                # Use the first key ID from the session (the actual key, not message ID)
+                actual_key_id = session.key_ids[0]
+                self.logger.info(f"Using actual key ID for rotation: {actual_key_id}")
+                
                 # Create rotation context with flexible parameters
                 from src.personas.base_persona import RotationContext
                 
                 # Create rotation context with persona configuration
                 persona_config = persona.config if hasattr(persona, 'config') else {}
                 context = RotationContext(
-                    key_id=message.original_message_id,
+                    key_id=actual_key_id,  # Use the actual key ID, not message ID
                     rotation_timestamp=message.final_rotation_timestamp,
                     device_interface=persona_config.get('device_interface'),
                     encryption_algorithm=persona_config.get('encryption_algorithm', 'AES-256'),
@@ -935,7 +947,7 @@ class UDPService:
                     rollback_on_failure=persona_config.get('rollback_on_failure', True),
                     notification_url=persona_config.get('notification_url'),
                     notification_headers=persona_config.get('notification_headers', {}),
-                    session_id=f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}",
+                    session_id=session_id,
                     master_sae_id=message.master_sae_id,
                     slave_sae_id=message.slave_sae_id,
                     custom_metadata=persona_config.get('custom_metadata', {}),
