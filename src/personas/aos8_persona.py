@@ -422,10 +422,20 @@ class Aos8Persona(BasePersona):
         # Step 2: Add new PPK using the same API as pre_configure_key
         print(f"   🔄 Step 2: Adding new PPK {context.key_id}")
         
+        # Get key material from key service using key ID
+        from src.services.key_service import key_service
+        key = key_service.get_key(context.key_id)
+        if not key:
+            print(f"   ❌ Failed to get key material for key ID: {context.key_id}")
+            return False
+        
+        key_material = key.key_material
+        print(f"   🔐 Retrieved key material: {len(key_material)} bytes")
+        
         # Convert key material to hex format for AOS8
         import base64
         try:
-            key_bytes = base64.b64decode(context.key_material)
+            key_bytes = base64.b64decode(key_material)
             key_hex = key_bytes.hex()
             print(f"   🔐 Key converted to hex: {key_hex[:20]}...")
         except Exception as e:
@@ -434,7 +444,7 @@ class Aos8Persona(BasePersona):
         
         # Prepare ISAKMP PPK payload - using the same format as pre_configure_key
         ppk_payload = {
-            "ppk_value": context.key_material,  # Base64 encoded key
+            "ppk_value": key_material,  # Base64 encoded key
             "ppk_id": context.key_id,  # Use key ID as PPK ID
             "peer-any": True  # Allow any peer
         }
