@@ -676,7 +676,7 @@ class UDPService:
                 from src.personas.base_persona import persona_manager
                 from src.config import config
                 
-                persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+                persona_name = config.device_persona
                 persona_instance = persona_manager.load_persona(persona_name)
                 
                 if persona_instance:

@@ -941,17 +941,9 @@ def interactive():
         from src.personas.base_persona import persona_manager
         configured_persona = persona_manager.load_configured_persona()
         if configured_persona:
-            # Show what persona was actually loaded
-            if config.device_persona == "default":
-                console.print(f"[blue]✓[/blue] Loaded default persona: aos8 (configured as 'default')")
-            else:
-                console.print(f"[blue]✓[/blue] Loaded configured persona: {config.device_persona}")
+            console.print(f"[blue]✓[/blue] Loaded configured persona: {config.device_persona}")
         else:
-            # Show what persona was attempted
-            if config.device_persona == "default":
-                console.print(f"[yellow]Warning: Could not load default persona: aos8 (configured as 'default')[/yellow]")
-            else:
-                console.print(f"[yellow]Warning: Could not load configured persona: {config.device_persona}[/yellow]")
+            console.print(f"[yellow]Warning: Could not load configured persona: {config.device_persona}[/yellow]")
     except Exception as e:
         console.print(f"[yellow]Warning: Could not load configured persona: {e}[/yellow]")
     
@@ -1769,7 +1761,7 @@ def handle_key_notify(args):
         # Get persona timing configuration
         try:
             from src.personas.base_persona import persona_manager
-            persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+            persona_name = config.device_persona
             persona_instance = persona_manager.load_persona(persona_name)
             
             if persona_instance:
@@ -1905,7 +1897,7 @@ def handle_persona_test(args):
         # Try to get configured persona from config
         try:
             from src.config import config
-            persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+            persona_name = config.device_persona
             console.print(f"[blue]Using configured persona: {persona_name}[/blue]")
         except:
             persona_name = input("Enter persona name to test: ").strip()
@@ -1961,7 +1953,7 @@ def handle_persona_preconfigure_key(args):
     # Get configured persona from config
     try:
         from src.config import config
-        persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+        persona_name = config.device_persona
         console.print(f"[blue]Using configured persona: {persona_name}[/blue]")
     except:
         console.print("[red]✗[/red] No persona configured. Please set device_persona in config.")
@@ -2019,7 +2011,7 @@ def handle_persona_delete_key(args):
     # Get configured persona from config
     try:
         from src.config import config
-        persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+        persona_name = config.device_persona
         console.print(f"[blue]Using configured persona: {persona_name}[/blue]")
     except:
         console.print("[red]✗[/red] No persona configured. Please set device_persona in config.")
@@ -2067,7 +2059,7 @@ def handle_persona_roll_key(args):
     # Get configured persona from config
     try:
         from src.config import config
-        persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+        persona_name = config.device_persona
         console.print(f"[blue]Using configured persona: {persona_name}[/blue]")
     except:
         console.print("[red]✗[/red] No persona configured. Please set device_persona in config.")
@@ -2124,7 +2116,7 @@ def handle_persona_status(args):
         # Use configured persona
         try:
             from src.config import config
-            persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+            persona_name = config.device_persona
             console.print(f"[blue]Using configured persona: {persona_name}[/blue]")
         except:
             console.print("[red]✗[/red] No persona configured. Please set device_persona in config.")

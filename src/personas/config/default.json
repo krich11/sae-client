@@ -1,0 +1,17 @@
+{
+    "persona_name": "default",
+    "version": "1.0.0",
+    "description": "Default persona - message exchange only",
+    "simulation_mode": true,
+    "debug_mode": false,
+    "initial_roll_delay_seconds": 300,
+    "grace_period_seconds": 120,
+    "device_interface": "none",
+    "encryption_algorithm": "none",
+    "key_priority": "normal",
+    "rollback_on_failure": false,
+    "advance_warning_seconds": 30,
+    "cleanup_delay_seconds": 60,
+    "validate_key_before_rotation": false,
+    "validate_device_after_rotation": false
+}

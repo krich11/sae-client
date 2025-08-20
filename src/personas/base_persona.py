@@ -423,7 +423,7 @@ class PersonaManager:
             from src.config import config
             
             # Get configured persona name
-            persona_name = config.device_persona if config.device_persona != "default" else "aos8"
+            persona_name = config.device_persona
             
             # Load the configured persona
             persona = self.load_persona(persona_name)
