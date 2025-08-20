@@ -941,9 +941,17 @@ def interactive():
         from src.personas.base_persona import persona_manager
         configured_persona = persona_manager.load_configured_persona()
         if configured_persona:
-            console.print(f"[blue]✓[/blue] Loaded configured persona: {config.device_persona if config.device_persona != 'default' else 'aos8'}")
+            # Show what persona was actually loaded
+            if config.device_persona == "default":
+                console.print(f"[blue]✓[/blue] Loaded default persona: aos8 (configured as 'default')")
+            else:
+                console.print(f"[blue]✓[/blue] Loaded configured persona: {config.device_persona}")
         else:
-            console.print(f"[yellow]Warning: Could not load configured persona: {config.device_persona if config.device_persona != 'default' else 'aos8'}[/yellow]")
+            # Show what persona was attempted
+            if config.device_persona == "default":
+                console.print(f"[yellow]Warning: Could not load default persona: aos8 (configured as 'default')[/yellow]")
+            else:
+                console.print(f"[yellow]Warning: Could not load configured persona: {config.device_persona}[/yellow]")
     except Exception as e:
         console.print(f"[yellow]Warning: Could not load configured persona: {e}[/yellow]")
     
