@@ -921,9 +921,22 @@ class UDPService:
         # Master initiates cleanup protocol after receiving rotation completion
         self.logger.info("Initiating cleanup protocol after receiving rotation completion")
         
-        # Get slave connection details from the message source address
-        slave_host = addr[0]
-        slave_port = addr[1]
+        # Get slave connection details from peer registry (not from message source address)
+        from .sae_peers import sae_peers
+        slave_address = sae_peers.get_peer_address(message.slave_sae_id)
+        
+        if not slave_address:
+            self.logger.error(f"Slave {message.slave_sae_id} not found in known peers")
+            return
+        
+        slave_host, slave_port = slave_address
+        
+        # Debug logging for slave address lookup
+        if self.config.debug_mode:
+            self.logger.info(f"CLEANUP SLAVE ADDRESS LOOKUP:")
+            self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
+            self.logger.info(f"  Found Address: {slave_host}:{slave_port}")
+            self.logger.info(f"  Original Source Address: {addr[0]}:{addr[1]}")
         
         # Initiate cleanup protocol
         self.initiate_cleanup_protocol(
