@@ -165,6 +165,75 @@ class ConfigManager:
             if hasattr(self.config, key):
                 setattr(self.config, key, value)
                 self.logger.info(f"Updated config: {key} = {value}")
+        
+        # Persist changes to .env file
+        self._persist_config_to_env()
+    
+    def _persist_config_to_env(self):
+        """Persist current configuration to .env file."""
+        try:
+            env_file_path = Path(self.config_file)
+            
+            # Read existing .env file
+            env_lines = []
+            if env_file_path.exists():
+                with open(env_file_path, 'r') as f:
+                    env_lines = f.readlines()
+            
+            # Create a set of existing variable names
+            existing_vars = set()
+            for line in env_lines:
+                if '=' in line and not line.strip().startswith('#'):
+                    var_name = line.split('=', 1)[0].strip()
+                    existing_vars.add(var_name)
+            
+            # Update or add configuration values
+            updated_lines = []
+            config_updated = False
+            
+            # Process existing lines
+            for line in env_lines:
+                if '=' in line and not line.strip().startswith('#'):
+                    var_name = line.split('=', 1)[0].strip()
+                    if var_name in self.config.model_fields:
+                        # Update existing variable
+                        field_value = getattr(self.config, var_name)
+                        if isinstance(field_value, bool):
+                            field_value = str(field_value).lower()
+                        elif isinstance(field_value, list):
+                            field_value = ','.join(map(str, field_value))
+                        else:
+                            field_value = str(field_value)
+                        updated_lines.append(f"{var_name}={field_value}\n")
+                        config_updated = True
+                    else:
+                        # Keep non-config variables
+                        updated_lines.append(line)
+                else:
+                    # Keep comments and empty lines
+                    updated_lines.append(line)
+            
+            # Add any new config variables that weren't in the file
+            for field_name in self.config.model_fields:
+                if field_name not in existing_vars:
+                    field_value = getattr(self.config, field_name)
+                    if isinstance(field_value, bool):
+                        field_value = str(field_value).lower()
+                    elif isinstance(field_value, list):
+                        field_value = ','.join(map(str, field_value))
+                    else:
+                        field_value = str(field_value)
+                    updated_lines.append(f"{field_name}={field_value}\n")
+                    config_updated = True
+            
+            # Write back to .env file if changes were made
+            if config_updated:
+                with open(env_file_path, 'w') as f:
+                    f.writelines(updated_lines)
+                self.logger.info(f"Configuration persisted to {env_file_path}")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to persist configuration to .env file: {e}")
 
 
 # Global configuration instance
