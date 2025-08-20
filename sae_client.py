@@ -5,6 +5,7 @@ Main entry point for the SAE client application.
 """
 
 import sys
+import time
 import os
 import json
 import click
@@ -294,6 +295,39 @@ def cli(ctx, config, verbose):
         config_manager.config_file = config
     
     print_banner()
+    
+    # Check for environment file migration
+    try:
+        from src.utils.env_migrator import migrate_env_file
+        console.print("[blue]Checking environment configuration...[/blue]")
+        
+        # Run migration check (dry run first)
+        from src.utils.env_migrator import EnvMigrator
+        migrator = EnvMigrator()
+        needs_migration, missing_vars = migrator.needs_migration()
+        
+        if needs_migration:
+            console.print("[yellow]⚠️  Environment migration needed![/yellow]")
+            console.print("[yellow]Your .env file is missing some configuration variables from env.template.[/yellow]")
+            
+            if Confirm.ask("Would you like to migrate your .env file now?", default=True):
+                console.print("[blue]Migrating environment configuration...[/blue]")
+                success = migrate_env_file(backup=True)
+                if success:
+                    console.print("[green]✅ Environment migration completed successfully![/green]")
+                    console.print("[blue]A backup of your original .env file has been created.[/blue]")
+                    console.print("[yellow]Please restart the application for changes to take effect.[/yellow]")
+                    sys.exit(0)
+                else:
+                    console.print("[red]❌ Environment migration failed![/red]")
+                    console.print("[yellow]You can continue, but some features may not work correctly.[/yellow]")
+            else:
+                console.print("[yellow]Migration skipped. Some features may not work correctly.[/yellow]")
+        else:
+            console.print("[green]✅ Environment configuration is up to date[/green]")
+    except Exception as e:
+        console.print(f"[yellow]⚠️  Could not check environment migration: {e}[/yellow]")
+        console.print("[yellow]Continuing with current configuration...[/yellow]")
     
     # If no command is specified, run interactive mode
     if ctx.invoked_subcommand is None:
@@ -2762,6 +2796,45 @@ def get_peer(sae_id):
             
     except Exception as e:
         console.print(f"[red]✗[/red] Error looking up SAE peer: {e}")
+
+
+@cli.command()
+@click.option('--dry-run', is_flag=True, help='Show what would be migrated without making changes')
+@click.option('--no-backup', is_flag=True, help='Skip creating backup of current .env file')
+def migrate_env(dry_run, no_backup):
+    """Migrate .env file to match env.template structure."""
+    try:
+        from src.utils.env_migrator import migrate_env_file
+        
+        console.print("[blue]Environment Migration Utility[/blue]")
+        console.print("This will update your .env file to include any missing variables from env.template")
+        
+        if dry_run:
+            console.print("[yellow]Running in dry-run mode - no changes will be made[/yellow]")
+            success = migrate_env_file(dry_run=True)
+            if success:
+                console.print("[green]✅ Dry run completed successfully[/green]")
+            else:
+                console.print("[red]❌ Dry run failed[/red]")
+        else:
+            backup = not no_backup
+            if backup:
+                console.print("[blue]A backup of your current .env file will be created[/blue]")
+            
+            if Confirm.ask("Proceed with migration?", default=True):
+                success = migrate_env_file(backup=backup)
+                if success:
+                    console.print("[green]✅ Migration completed successfully![/green]")
+                    if backup:
+                        console.print("[blue]A backup of your original .env file has been created.[/blue]")
+                    console.print("[yellow]Please restart the application for changes to take effect.[/yellow]")
+                else:
+                    console.print("[red]❌ Migration failed![/red]")
+            else:
+                console.print("[yellow]Migration cancelled[/yellow]")
+                
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error during migration: {e}")
 
 
 if __name__ == '__main__':
