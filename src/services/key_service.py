@@ -501,6 +501,106 @@ class KeyManagementService:
             return True
         return False
     
+    def revert_notified_key_to_available(self, key_id: str, slave_sae_id: str = None) -> bool:
+        """
+        Revert a notified/assigned key back to available status.
+        
+        This is used when:
+        - A session expires without completing the 3-way handshake
+        - A scheduled rotation fails or times out
+        - A key was notified but never acknowledged
+        
+        Args:
+            key_id: Key identifier
+            slave_sae_id: Optional slave SAE ID to remove from notifications
+            
+        Returns:
+            bool: True if key was reverted, False otherwise
+        """
+        key = self.get_key(key_id)
+        if key:
+            # Remove the notification for the specific slave if provided
+            if slave_sae_id and key.metadata and 'notifications' in key.metadata:
+                key.metadata['notifications'] = [
+                    n for n in key.metadata['notifications'] 
+                    if n.get('slave_sae_id') != slave_sae_id
+                ]
+            
+            # If no more notifications, revert to available
+            if (not key.metadata or 
+                'notifications' not in key.metadata or 
+                len(key.metadata['notifications']) == 0):
+                
+                key.status = KeyStatus.AVAILABLE
+                if key.metadata is None:
+                    key.metadata = {}
+                key.metadata['reverted_at'] = datetime.now().isoformat()
+                key.metadata['reverted_reason'] = 'session_expired_or_failed'
+                
+                self.storage.save_key(key)
+                self.logger.info(f"Reverted key {key_id} back to available status")
+                return True
+            else:
+                # Still has other notifications, just update metadata
+                if key.metadata is None:
+                    key.metadata = {}
+                key.metadata['notification_removed_at'] = datetime.now().isoformat()
+                key.metadata['removed_slave_sae_id'] = slave_sae_id
+                
+                self.storage.save_key(key)
+                self.logger.info(f"Removed notification for slave {slave_sae_id} from key {key_id}")
+                return True
+        
+        return False
+    
+    def cleanup_expired_notifications(self, max_age_hours: int = 24) -> int:
+        """
+        Clean up expired notifications and revert keys to available status.
+        
+        This method should be called periodically to clean up keys that were
+        notified but never completed the handshake process.
+        
+        Args:
+            max_age_hours: Maximum age of notifications before cleanup (default: 24 hours)
+            
+        Returns:
+            int: Number of keys cleaned up
+        """
+        cleaned_count = 0
+        current_time = datetime.now()
+        
+        for key in self.keys.values():
+            if (key.metadata and 
+                'notifications' in key.metadata and 
+                key.metadata['notifications']):
+                
+                # Check each notification for age
+                expired_notifications = []
+                for notification in key.metadata['notifications']:
+                    notified_at_str = notification.get('notified_at')
+                    if notified_at_str:
+                        try:
+                            notified_at = datetime.fromisoformat(notified_at_str)
+                            age = current_time - notified_at
+                            if age.total_seconds() > max_age_hours * 3600:
+                                expired_notifications.append(notification)
+                        except ValueError:
+                            # Invalid date format, consider it expired
+                            expired_notifications.append(notification)
+                
+                # Remove expired notifications
+                if expired_notifications:
+                    for expired_notification in expired_notifications:
+                        slave_sae_id = expired_notification.get('slave_sae_id')
+                        if slave_sae_id:
+                            self.revert_notified_key_to_available(key.key_id, slave_sae_id)
+                            cleaned_count += 1
+        
+        if cleaned_count > 0:
+            self.logger.info(f"Cleaned up {cleaned_count} expired notifications")
+        
+        return cleaned_count
+    
     def get_in_production_keys(self, key_type: Optional[KeyType] = None, allowed_sae_id: Optional[str] = None) -> List[LocalKey]:
         """
         Get keys that are currently in production (actively being used).

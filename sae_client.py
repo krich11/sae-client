@@ -976,6 +976,8 @@ def interactive():
                 show_help()
             elif command == 'debug':
                 handle_debug()
+            elif command == 'cleanup':
+                handle_cleanup()
             elif command == 'show':
                 handle_show(args)
             elif command == 'key':
@@ -1035,6 +1037,7 @@ def show_help():
 [bold cyan]System Commands:[/bold cyan]
   debug                         - Toggle debug mode on/off
   test-menu                     - Test Easy-KME server routes
+  cleanup                       - Clean up expired sessions and revert keys
   help, ?                       - Show this help
   quit, exit, q                 - Exit interactive mode
 
@@ -1062,6 +1065,38 @@ def handle_debug():
         console.print("  • Device persona operations")
     else:
         console.print("[green]✓[/green] Debug mode disabled")
+
+
+def handle_cleanup():
+    """Handle cleanup command."""
+    try:
+        from src.services.udp_service import udp_service
+        from src.services.key_service import key_service
+        
+        console.print("[blue]Cleaning up expired sessions and keys...[/blue]")
+        
+        # Clean up expired sessions and revert keys
+        udp_service.cleanup_old_sessions(max_age_hours=24)
+        
+        # Clean up expired key notifications
+        cleaned_count = udp_service.cleanup_expired_keys(max_age_hours=24)
+        
+        # Get current key statistics
+        key_stats = key_service.get_key_statistics()
+        
+        console.print(f"[green]✓[/green] Cleanup completed")
+        console.print(f"[green]✓[/green] Keys reverted to available: {cleaned_count}")
+        console.print(f"[green]✓[/green] Current key status:")
+        console.print(f"  • Available: {key_stats['available_keys']}")
+        console.print(f"  • Assigned: {key_stats['assigned_keys']}")
+        console.print(f"  • In Production: {key_stats['in_production_keys']}")
+        console.print(f"  • Expired: {key_stats['expired_keys']}")
+        
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error during cleanup: {e}")
+        if config_manager.config.debug_mode:
+            import traceback
+            console.print(f"[red]Traceback:[/red] {traceback.format_exc()}")
 
 
 def handle_show(args):

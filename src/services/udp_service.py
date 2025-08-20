@@ -990,7 +990,7 @@ class UDPService:
         return self.sessions.get(session_id)
     
     def cleanup_old_sessions(self, max_age_hours: int = 24):
-        """Clean up old synchronization sessions."""
+        """Clean up old synchronization sessions and revert expired keys."""
         try:
             current_time = datetime.now()
             sessions_to_remove = []
@@ -1000,12 +1000,42 @@ class UDPService:
                 if age.total_seconds() > max_age_hours * 3600:
                     sessions_to_remove.append(session_id)
             
+            # Clean up expired sessions and revert keys
             for session_id in sessions_to_remove:
+                # Extract key IDs and slave SAE ID from session
+                key_ids = session.key_ids if hasattr(session, 'key_ids') else []
+                slave_sae_id = session.slave_sae_id if hasattr(session, 'slave_sae_id') else None
+                
+                # Revert keys back to available status
+                if key_ids and slave_sae_id:
+                    from src.services.key_service import key_service
+                    for key_id in key_ids:
+                        key_service.revert_notified_key_to_available(key_id, slave_sae_id)
+                        self.logger.info(f"Reverted key {key_id} to available due to expired session {session_id}")
+                
+                # Remove the session
                 del self.sessions[session_id]
                 self.logger.info(f"Cleaned up old session: {session_id}")
                 
         except Exception as e:
             self.logger.error(f"Error cleaning up old sessions: {e}")
+    
+    def cleanup_expired_keys(self, max_age_hours: int = 24):
+        """
+        Clean up expired key notifications and revert keys to available status.
+        
+        This method should be called periodically to clean up keys that were
+        notified but never completed the handshake process.
+        """
+        try:
+            from src.services.key_service import key_service
+            cleaned_count = key_service.cleanup_expired_notifications(max_age_hours)
+            
+            if cleaned_count > 0:
+                self.logger.info(f"UDP Service: Cleaned up {cleaned_count} expired key notifications")
+            
+        except Exception as e:
+            self.logger.error(f"Error cleaning up expired keys: {e}")
 
 
     def _print_console_notification(self, title: str, data: dict, is_error: bool = False, is_warning: bool = False):
