@@ -102,6 +102,8 @@ class SyncStateMachine:
                 del self.sessions[session_id]
                 if message_type == MessageType.NOTIFY:
                     return True, "Session expired, accepting new notification"
+                elif message_type == MessageType.ROTATION_COMPLETED:
+                    return True, "Session expired, accepting rotation completed notification"
                 else:
                     return False, "Session expired, rejecting non-notification message"
             
