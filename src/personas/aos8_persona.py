@@ -726,6 +726,18 @@ class Aos8Persona(BasePersona):
         print(f"   ✅ ISAKMP PPK cleanup completed successfully")
         return True
     
+    def delete_key(self, key_id: str) -> bool:
+        """
+        Delete a key from the AOS8 device (alias for delete_ppk).
+        
+        Args:
+            key_id: The key ID to delete
+            
+        Returns:
+            bool: True if deletion was successful
+        """
+        return self.delete_ppk(key_id)
+    
     def delete_ppk(self, ppk_id: str) -> bool:
         """
         Delete a specific PPK from the AOS8 device.
