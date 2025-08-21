@@ -391,15 +391,18 @@ class UDPService:
         Args:
             message: The signed message to send
             host: Destination host
-            port: Destination port
+            port: Destination port (will be overridden to use configured UDP port)
             
         Returns:
             bool: True if message sent successfully
         """
         try:
+            # Always use the configured UDP port (5000) for all communication
+            configured_port = self.sync_config.udp_port
+            
             # Debug logging for outgoing message
             if self.config.debug_mode:
-                self.logger.info(f"UDP MESSAGE SEND: {host}:{port}")
+                self.logger.info(f"UDP MESSAGE SEND: {host}:{configured_port} (configured port, requested {port} ignored)")
                 message_json = message.json()
                 self.logger.info(f"UDP MESSAGE JSON: {json.dumps(json.loads(message_json), indent=2)}")
                 
@@ -420,14 +423,14 @@ class UDPService:
                 message_json = message.json()
                 message_bytes = message_json.encode('utf-8')
                 
-                # Send message
-                send_socket.sendto(message_bytes, (host, port))
+                # Send message to configured port
+                send_socket.sendto(message_bytes, (host, configured_port))
                 
-                self.logger.debug(f"Sent message to {host}:{port}: {message.sender_sae_id}")
+                self.logger.debug(f"Sent message to {host}:{configured_port}: {message.sender_sae_id}")
                 return True
                 
         except Exception as e:
-            self.logger.error(f"Failed to send message to {host}:{port}: {e}")
+            self.logger.error(f"Failed to send message to {host}:{configured_port}: {e}")
             return False
     
     def _handle_key_notification(self, message: BaseSyncMessage, addr: tuple):
@@ -1406,6 +1409,16 @@ class UDPService:
                 error_message=error_message
             )
             
+            # Get master's configured address from peer registry (not ephemeral source address)
+            from .sae_peers import sae_peers
+            master_address = sae_peers.get_peer_address(original_message.master_sae_id)
+            
+            if not master_address:
+                self.logger.error(f"Master {original_message.master_sae_id} not found in known peers")
+                return
+            
+            master_host, master_port = master_address
+            
             # Debug logging for status response creation
             if self.config.debug_mode:
                 self.logger.info(f"CLEANUP STATUS RESPONSE CREATION:")
@@ -1413,10 +1426,11 @@ class UDPService:
                 self.logger.info(f"  Status: {status}")
                 self.logger.info(f"  Service Status: {service_status}")
                 self.logger.info(f"  Error Message: {error_message}")
-                self.logger.info(f"  Target Address: {addr[0]}:{addr[1]}")
+                self.logger.info(f"  Master Address: {master_host}:{master_port}")
+                self.logger.info(f"  Original Source Address: {addr[0]}:{addr[1]}")
             
-            # Send message
-            success = self.send_message(status_response, addr[0], addr[1])
+            # Send message to master's configured address
+            success = self.send_message(status_response, master_host, master_port)
             
             if success:
                 self.logger.info("Sent cleanup status response")
@@ -1442,6 +1456,16 @@ class UDPService:
                 error_message=error_message
             )
             
+            # Get master's configured address from peer registry (not ephemeral source address)
+            from .sae_peers import sae_peers
+            master_address = sae_peers.get_peer_address(original_message.master_sae_id)
+            
+            if not master_address:
+                self.logger.error(f"Master {original_message.master_sae_id} not found in known peers")
+                return
+            
+            master_host, master_port = master_address
+            
             # Debug logging for delete response creation
             if self.config.debug_mode:
                 self.logger.info(f"CLEANUP DELETE RESPONSE CREATION:")
@@ -1450,10 +1474,11 @@ class UDPService:
                 self.logger.info(f"  Deleted Keys: {deleted_key_ids}")
                 self.logger.info(f"  Failed Keys: {failed_key_ids}")
                 self.logger.info(f"  Error Message: {error_message}")
-                self.logger.info(f"  Target Address: {addr[0]}:{addr[1]}")
+                self.logger.info(f"  Master Address: {master_host}:{master_port}")
+                self.logger.info(f"  Original Source Address: {addr[0]}:{addr[1]}")
             
-            # Send message
-            success = self.send_message(delete_response, addr[0], addr[1])
+            # Send message to master's configured address
+            success = self.send_message(delete_response, master_host, master_port)
             
             if success:
                 self.logger.info("Sent cleanup delete response")
