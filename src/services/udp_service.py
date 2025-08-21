@@ -1409,16 +1409,6 @@ class UDPService:
                 error_message=error_message
             )
             
-            # Get master's configured address from peer registry (not ephemeral source address)
-            from .sae_peers import sae_peers
-            master_address = sae_peers.get_peer_address(original_message.master_sae_id)
-            
-            if not master_address:
-                self.logger.error(f"Master {original_message.master_sae_id} not found in known peers")
-                return
-            
-            master_host, master_port = master_address
-            
             # Debug logging for status response creation
             if self.config.debug_mode:
                 self.logger.info(f"CLEANUP STATUS RESPONSE CREATION:")
@@ -1426,11 +1416,10 @@ class UDPService:
                 self.logger.info(f"  Status: {status}")
                 self.logger.info(f"  Service Status: {service_status}")
                 self.logger.info(f"  Error Message: {error_message}")
-                self.logger.info(f"  Master Address: {master_host}:{master_port}")
-                self.logger.info(f"  Original Source Address: {addr[0]}:{addr[1]}")
+                self.logger.info(f"  Target Address: {addr[0]}:{addr[1]} (will use configured port)")
             
-            # Send message to master's configured address
-            success = self.send_message(status_response, master_host, master_port)
+            # Send message (send_message will use configured port)
+            success = self.send_message(status_response, addr[0], addr[1])
             
             if success:
                 self.logger.info("Sent cleanup status response")
@@ -1456,16 +1445,6 @@ class UDPService:
                 error_message=error_message
             )
             
-            # Get master's configured address from peer registry (not ephemeral source address)
-            from .sae_peers import sae_peers
-            master_address = sae_peers.get_peer_address(original_message.master_sae_id)
-            
-            if not master_address:
-                self.logger.error(f"Master {original_message.master_sae_id} not found in known peers")
-                return
-            
-            master_host, master_port = master_address
-            
             # Debug logging for delete response creation
             if self.config.debug_mode:
                 self.logger.info(f"CLEANUP DELETE RESPONSE CREATION:")
@@ -1474,11 +1453,10 @@ class UDPService:
                 self.logger.info(f"  Deleted Keys: {deleted_key_ids}")
                 self.logger.info(f"  Failed Keys: {failed_key_ids}")
                 self.logger.info(f"  Error Message: {error_message}")
-                self.logger.info(f"  Master Address: {master_host}:{master_port}")
-                self.logger.info(f"  Original Source Address: {addr[0]}:{addr[1]}")
+                self.logger.info(f"  Target Address: {addr[0]}:{addr[1]} (will use configured port)")
             
-            # Send message to master's configured address
-            success = self.send_message(delete_response, master_host, master_port)
+            # Send message (send_message will use configured port)
+            success = self.send_message(delete_response, addr[0], addr[1])
             
             if success:
                 self.logger.info("Sent cleanup delete response")
