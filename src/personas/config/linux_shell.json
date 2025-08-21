@@ -4,12 +4,10 @@
     "version": "1.0.0",
     
     "shell_path": "/bin/bash",
-    "key_directory": "/tmp/sae-keys",
+    "key_directory": "/opt/sae/keys",
     "simulation_mode": false,
     "operation_delay": 1.0,
     "command_timeout": 30,
-    "sudo_enabled": false,
-    "sudo_user": "root",
     
     "rotation_commands": [
         "echo 'Key rotation completed'",
@@ -29,7 +27,8 @@
             "file-based-key-storage",
             "shell-command-execution",
             "system-integration",
-            "custom-scripts"
+            "custom-scripts",
+            "persistent-key-storage"
         ]
     }
 }

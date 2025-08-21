@@ -27,12 +27,10 @@ class LinuxShellPersona(BasePersona):
         
         # Linux Shell-specific configuration
         self.shell_path = config.get('shell_path', '/bin/bash')
-        self.key_directory = config.get('key_directory', '/tmp/sae-keys')
+        self.key_directory = config.get('key_directory', '/opt/sae/keys')
         self.simulation_mode = config.get('simulation_mode', False)
         self.operation_delay = config.get('operation_delay', 1.0)  # seconds
         self.command_timeout = config.get('command_timeout', 30)  # seconds
-        self.sudo_enabled = config.get('sudo_enabled', False)
-        self.sudo_user = config.get('sudo_user', 'root')
         
         super().__init__(config)
         
@@ -44,8 +42,6 @@ class LinuxShellPersona(BasePersona):
             print(f"   Simulation Mode: {self.simulation_mode}")
             print(f"   Operation Delay: {self.operation_delay}s")
             print(f"   Command Timeout: {self.command_timeout}s")
-            print(f"   Sudo Enabled: {self.sudo_enabled}")
-            print(f"   Sudo User: {self.sudo_user}")
     
     def _validate_config(self):
         """Validate Linux Shell persona configuration."""
@@ -91,18 +87,12 @@ class LinuxShellPersona(BasePersona):
             if timeout is None:
                 timeout = self.command_timeout
             
-            # Prepare command with sudo if enabled
-            if self.sudo_enabled:
-                full_command = f"sudo -u {self.sudo_user} {command}"
-            else:
-                full_command = command
-            
             if self.config.get('debug_mode', False):
-                print(f"   🐚 Executing: {full_command}")
+                print(f"   🐚 Executing: {command}")
             
             # Execute command with timeout
             result = subprocess.run(
-                full_command,
+                command,
                 shell=True,
                 capture_output=True,
                 text=True,
@@ -360,7 +350,5 @@ class LinuxShellPersona(BasePersona):
             "shell_path": self.shell_path,
             "key_directory": self.key_directory,
             "simulation_mode": self.simulation_mode,
-            "sudo_enabled": self.sudo_enabled,
-            "sudo_user": self.sudo_user,
             "current_keys": self.get_current_keys()
         }
