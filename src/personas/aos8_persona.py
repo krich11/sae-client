@@ -9,7 +9,7 @@ import time
 import requests
 import json
 import warnings
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pathlib import Path
 
 # Suppress SSL certificate warnings for development
@@ -728,7 +728,7 @@ class Aos8Persona(BasePersona):
     
     def delete_key(self, key_id: str) -> bool:
         """
-        Delete a key from the AOS8 device (alias for delete_ppk).
+        Delete a key from the AOS8 device with verification.
         
         Args:
             key_id: The key ID to delete
@@ -736,7 +736,136 @@ class Aos8Persona(BasePersona):
         Returns:
             bool: True if deletion was successful
         """
-        return self.delete_ppk(key_id)
+        print(f"🗑️  {self.persona_name} Persona: Delete Key with Verification")
+        print(f"   Key ID: {key_id}")
+        print(f"   Device IP: {self.device_ip}")
+        
+        # Step 1: Verify key exists before deletion
+        print(f"   🔍 Step 1: Verifying key presence...")
+        if not self._verify_key_exists(key_id):
+            print(f"   ⚠️  Key {key_id} not found on device - skipping deletion")
+            return True  # Not an error if key doesn't exist
+        
+        # Step 2: Delete the key
+        print(f"   🗑️  Step 2: Deleting key...")
+        if not self.delete_ppk(key_id):
+            print(f"   ❌ Failed to delete key {key_id}")
+            return False
+        
+        # Step 3: Verify key was deleted
+        print(f"   ✅ Step 3: Verifying key deletion...")
+        if self._verify_key_exists(key_id):
+            print(f"   ❌ Key {key_id} still exists after deletion")
+            return False
+        
+        print(f"   ✅ Key {key_id} successfully deleted and verified")
+        return True
+    
+    def _verify_key_exists(self, key_id: str) -> bool:
+        """
+        Verify if a key exists on the AOS8 device using show command.
+        
+        Args:
+            key_id: The key ID to check
+            
+        Returns:
+            bool: True if key exists, False otherwise
+        """
+        if self.simulation_mode:
+            if self.config.get('debug_mode', False):
+                print(f"   🔄 Simulating key verification for: {key_id}")
+            time.sleep(self.operation_delay)
+            return False  # Simulate key not found
+        
+        try:
+            # Execute show command to get current PPKs
+            success, response_data, error = self._execute_show_command("show crypto-local isakmp ppk")
+            
+            if not success:
+                print(f"   ❌ Failed to execute show command: {error}")
+                return False
+            
+            # Parse the response to find the key
+            if '_data' in response_data:
+                output_lines = response_data['_data']
+                
+                if self.config.get('debug_mode', False):
+                    print(f"   📄 Show command output:")
+                    for line in output_lines:
+                        print(f"      {line}")
+                
+                # Look for the key ID in the output
+                for line in output_lines:
+                    if key_id in line:
+                        print(f"   ✅ Key {key_id} found in device output")
+                        return True
+                
+                print(f"   ❌ Key {key_id} not found in device output")
+                return False
+            else:
+                print(f"   ❌ No data in show command response")
+                return False
+                
+        except Exception as e:
+            print(f"   ❌ Error verifying key existence: {e}")
+            return False
+    
+    def get_current_ppks(self) -> List[str]:
+        """
+        Get list of current PPK IDs from the AOS8 device.
+        
+        Returns:
+            List of PPK IDs currently configured on the device
+        """
+        if self.simulation_mode:
+            if self.config.get('debug_mode', False):
+                print(f"   🔄 Simulating PPK list retrieval")
+            time.sleep(self.operation_delay)
+            return []  # Return empty list in simulation
+        
+        try:
+            # Execute show command to get current PPKs
+            success, response_data, error = self._execute_show_command("show crypto-local isakmp ppk")
+            
+            if not success:
+                print(f"   ❌ Failed to execute show command: {error}")
+                return []
+            
+            ppk_ids = []
+            
+            # Parse the response to extract PPK IDs
+            if '_data' in response_data:
+                output_lines = response_data['_data']
+                
+                for line in output_lines:
+                    # Skip header lines and empty lines
+                    if (line.strip() and 
+                        not line.startswith("Type Flags:") and 
+                        not line.startswith("TYPE") and 
+                        not line.startswith("----") and
+                        not line.startswith("Total PPKs") and
+                        not line.startswith("PPK Mandatory")):
+                        
+                        # Parse PPK ID from the line
+                        # Format: "N       PEER-ANY        ppk-id-614"
+                        parts = line.split()
+                        if len(parts) >= 3:
+                            ppk_id = parts[2]
+                            ppk_ids.append(ppk_id)
+                
+                if self.config.get('debug_mode', False):
+                    print(f"   📋 Found {len(ppk_ids)} PPKs on device:")
+                    for ppk_id in ppk_ids:
+                        print(f"      - {ppk_id}")
+                
+                return ppk_ids
+            else:
+                print(f"   ❌ No data in show command response")
+                return []
+                
+        except Exception as e:
+            print(f"   ❌ Error getting current PPKs: {e}")
+            return []
     
     def delete_ppk(self, ppk_id: str) -> bool:
         """
