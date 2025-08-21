@@ -1,0 +1,35 @@
+{
+    "persona_name": "linux_shell",
+    "description": "Linux Shell Command Execution Persona",
+    "version": "1.0.0",
+    
+    "shell_path": "/bin/bash",
+    "key_directory": "/tmp/sae-keys",
+    "simulation_mode": false,
+    "operation_delay": 1.0,
+    "command_timeout": 30,
+    "sudo_enabled": false,
+    "sudo_user": "root",
+    
+    "rotation_commands": [
+        "echo 'Key rotation completed'",
+        "date >> /tmp/sae-rotation.log"
+    ],
+    
+    "debug_mode": false,
+    
+    "metadata": {
+        "environment": "development",
+        "team": "network-security",
+        "project": "sae-client",
+        "device_model": "Linux-System",
+        "location": "local",
+        "management_interface": "shell",
+        "supported_operations": [
+            "file-based-key-storage",
+            "shell-command-execution",
+            "system-integration",
+            "custom-scripts"
+        ]
+    }
+}
