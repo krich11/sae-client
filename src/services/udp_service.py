@@ -219,85 +219,22 @@ class UDPService:
                 self.logger.info(f"UDP MESSAGE TIMESTAMP: {message.timestamp}")
             
             # State machine validation
-            # For acknowledgments, sync confirmations, and rotation completed, use the original_message_id to find the session
-            if message.message_type == MessageType.KEY_ACKNOWLEDGMENT:
-                from ..models.sync_models import KeyAcknowledgmentMessage
-                if isinstance(message, KeyAcknowledgmentMessage):
-                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
-                else:
-                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
-            elif message.message_type == MessageType.SYNC_CONFIRMATION:
-                from ..models.sync_models import SyncConfirmationMessage
-                if isinstance(message, SyncConfirmationMessage):
-                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
-                else:
-                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
-            elif message.message_type == MessageType.ROTATION_COMPLETED:
-                from ..models.sync_models import RotationCompletedMessage
-                if isinstance(message, RotationCompletedMessage):
-                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
-                else:
-                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
-            elif message.message_type == MessageType.CLEANUP_STATUS_REQUEST:
-                from ..models.sync_models import CleanupStatusRequestMessage
-                if isinstance(message, CleanupStatusRequestMessage):
-                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
-                else:
-                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
-            elif message.message_type == MessageType.CLEANUP_STATUS_RESPONSE:
-                from ..models.sync_models import CleanupStatusResponseMessage
-                if isinstance(message, CleanupStatusResponseMessage):
-                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
-                else:
-                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
-            elif message.message_type == MessageType.CLEANUP_DELETE_REQUEST:
-                from ..models.sync_models import CleanupDeleteRequestMessage
-                if isinstance(message, CleanupDeleteRequestMessage):
-                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
-                else:
-                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
-            elif message.message_type == MessageType.CLEANUP_DELETE_RESPONSE:
-                from ..models.sync_models import CleanupDeleteResponseMessage
-                if isinstance(message, CleanupDeleteResponseMessage):
-                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
-                else:
-                    session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
-            else:
+            # All messages use the same session ID pattern: master_slave_original_key_notification_id
+            # This ensures both master and slave use the same session ID throughout the protocol
+            if message.message_type == MessageType.KEY_NOTIFICATION:
+                # For key notifications, use the message ID as the session ID
                 session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.message_id}"
+            else:
+                # For all other messages, use the original_message_id which should point to the key notification
+                session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
             
             # Debug logging for session ID construction
             if self.config.debug_mode:
                 self.logger.info(f"STATE MACHINE VALIDATION:")
                 self.logger.info(f"  Message Type: {message.message_type}")
                 self.logger.info(f"  Message ID: {message.message_id}")
-                if message.message_type == MessageType.KEY_ACKNOWLEDGMENT:
-                    from ..models.sync_models import KeyAcknowledgmentMessage
-                    if isinstance(message, KeyAcknowledgmentMessage):
-                        self.logger.info(f"  Original Message ID: {message.original_message_id}")
-                elif message.message_type == MessageType.SYNC_CONFIRMATION:
-                    from ..models.sync_models import SyncConfirmationMessage
-                    if isinstance(message, SyncConfirmationMessage):
-                        self.logger.info(f"  Original Message ID: {message.original_message_id}")
-                elif message.message_type == MessageType.ROTATION_COMPLETED:
-                    from ..models.sync_models import RotationCompletedMessage
-                    if isinstance(message, RotationCompletedMessage):
-                        self.logger.info(f"  Original Message ID: {message.original_message_id}")
-                elif message.message_type == MessageType.CLEANUP_STATUS_REQUEST:
-                    from ..models.sync_models import CleanupStatusRequestMessage
-                    if isinstance(message, CleanupStatusRequestMessage):
-                        self.logger.info(f"  Original Message ID: {message.original_message_id}")
-                elif message.message_type == MessageType.CLEANUP_STATUS_RESPONSE:
-                    from ..models.sync_models import CleanupStatusResponseMessage
-                    if isinstance(message, CleanupStatusResponseMessage):
-                        self.logger.info(f"  Original Message ID: {message.original_message_id}")
-                elif message.message_type == MessageType.CLEANUP_DELETE_REQUEST:
-                    from ..models.sync_models import CleanupDeleteRequestMessage
-                    if isinstance(message, CleanupDeleteRequestMessage):
-                        self.logger.info(f"  Original Message ID: {message.original_message_id}")
-                elif message.message_type == MessageType.CLEANUP_DELETE_RESPONSE:
-                    from ..models.sync_models import CleanupDeleteResponseMessage
-                    if isinstance(message, CleanupDeleteResponseMessage):
-                        self.logger.info(f"  Original Message ID: {message.original_message_id}")
+                if hasattr(message, 'original_message_id'):
+                    self.logger.info(f"  Original Message ID: {message.original_message_id}")
                 self.logger.info(f"  Session ID: {session_id}")
                 self.logger.info(f"  Master SAE: {message.master_sae_id}")
                 self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
@@ -1400,8 +1337,9 @@ class UDPService:
             from ..utils.message_signer import message_signer
             
             # Create status response message
+            # Use the cleanup status request's original_message_id (key notification) for session lookup
             status_response = message_signer.create_cleanup_status_response(
-                original_message_id=original_message.message_id,
+                original_message_id=original_message.original_message_id,
                 status=status,
                 master_sae_id=original_message.master_sae_id,
                 slave_sae_id=original_message.slave_sae_id,
@@ -1435,8 +1373,9 @@ class UDPService:
             from ..utils.message_signer import message_signer
             
             # Create delete response message
+            # Use the cleanup delete request's original_message_id (key notification) for session lookup
             delete_response = message_signer.create_cleanup_delete_response(
-                original_message_id=original_message.message_id,
+                original_message_id=original_message.original_message_id,
                 status=status,
                 master_sae_id=original_message.master_sae_id,
                 slave_sae_id=original_message.slave_sae_id,
@@ -1472,8 +1411,9 @@ class UDPService:
             from ..utils.message_signer import message_signer
             
             # Create acknowledgment message
+            # Use the cleanup delete response's original_message_id (key notification) for session lookup
             acknowledgment = message_signer.create_cleanup_acknowledgment(
-                original_message_id=original_message.message_id,
+                original_message_id=original_message.original_message_id,
                 status=status,
                 master_sae_id=original_message.master_sae_id,
                 slave_sae_id=original_message.slave_sae_id
