@@ -914,6 +914,14 @@ class UDPService:
             return
         
         # Check if master is currently in ROTATING state (rotation in progress)
+        self.logger.info(f"DEBUG: Checking session state for cleanup initiation")
+        self.logger.info(f"DEBUG: Session state: {session.state}")
+        self.logger.info(f"DEBUG: SyncState.ROTATING: {SyncState.ROTATING}")
+        self.logger.info(f"DEBUG: States equal: {session.state == SyncState.ROTATING}")
+        
+        # Check if master rotation is in progress by looking at session state and timing
+        # If session is ROTATING and we received ROTATION_COMPLETED from slave,
+        # it means master rotation is still in progress
         if session.state == SyncState.ROTATING:
             self.logger.warning(f"Master rotation still in progress - session state is {session.state}")
             self.logger.info("Scheduling delayed cleanup initiation - will retry in 5 seconds")
@@ -939,6 +947,13 @@ class UDPService:
             cleanup_thread.start()
             return
         
+        # Additional safety check: if session state is PENDING_DONE, rotation is complete
+        if session.state == SyncState.PENDING_DONE:
+            self.logger.info(f"Master rotation confirmed complete - session state is {session.state}")
+        else:
+            self.logger.warning(f"Unexpected session state for cleanup: {session.state}")
+            # Still proceed with cleanup but log the unexpected state
+        
         # Get slave connection details from peer registry (not from message source address)
         from .sae_peers import sae_peers
         slave_address = sae_peers.get_peer_address(message.slave_sae_id)
@@ -950,6 +965,17 @@ class UDPService:
         # Call the cleanup initiation method
         self.logger.info(f"Master rotation confirmed complete - session state is {session.state}")
         self.logger.info("Initiating cleanup protocol after confirming master rotation completion")
+        
+        # Double-check session state before proceeding
+        current_session = self.sessions.get(session_id)
+        if current_session and current_session.state == SyncState.ROTATING:
+            self.logger.error(f"CRITICAL: Session state changed to ROTATING during cleanup initiation - aborting")
+            return
+        
+        # Log final confirmation before cleanup
+        self.logger.info(f"FINAL CHECK: Session state before cleanup: {current_session.state if current_session else 'No session'}")
+        self.logger.info(f"FINAL CHECK: Session updated at: {current_session.updated_at if current_session else 'No session'}")
+        
         self._initiate_cleanup_after_rotation_completion(message, slave_address)
     
     def _initiate_cleanup_after_rotation_completion(self, message, slave_address):
