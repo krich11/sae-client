@@ -1,6 +1,6 @@
 {
     "persona_name": "via_ppk",
-    "description": "VIA PPK XML File Generation Persona",
+    "description": "VIA PPK XML File Generation Persona (Master SAE Only)",
     "version": "1.0.0",
     
     "shell_path": "/bin/bash",
@@ -31,7 +31,8 @@
             "ppk-xml-generation",
             "sudo-execution",
             "system-integration",
-            "formatted-key-storage"
+            "formatted-key-storage",
+            "master-sae-only"
         ]
     }
 }

@@ -199,10 +199,9 @@ class LinuxShellPersona(BasePersona):
         print(f"   📄 Creating formatted PPK.xml file")
         
         try:
-            # Get SAE configuration
+            # Get SAE configuration (master SAE)
             from src.config import config_manager
-            sae_id = config_manager.config.sae_id
-            sae_ip = config_manager.config.sae_ip
+            sae_ip = config_manager.config.sae_ip  # Master SAE IP
             
             # Generate random temporary file name
             import uuid
