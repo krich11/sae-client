@@ -1486,7 +1486,7 @@ def handle_show_env(args):
         table.add_column("Source", style="yellow", width=15)
         
         # Get all fields from the config
-        for field_name, field in config.model_fields.items():
+        for field_name, field in config.__class__.model_fields.items():
             value = getattr(config, field_name)
             
             # Format the value for display
@@ -1512,7 +1512,7 @@ def handle_show_env(args):
         
         # Show additional info
         console.print(f"\n[dim]Configuration loaded from: {config_manager.config_file}[/dim]")
-        console.print(f"[dim]Total configuration variables: {len(config.model_fields)}[/dim]")
+        console.print(f"[dim]Total configuration variables: {len(config.__class__.model_fields)}[/dim]")
         
     except Exception as e:
         console.print(f"[red]✗[/red] Error showing environment: {e}")
