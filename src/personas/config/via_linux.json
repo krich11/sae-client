@@ -15,7 +15,7 @@
     
     "rotation_commands": [
         "pwd",
-        "qkd-rekey.sh",
+        "./qkd-rekey.sh",
         "sleep 5",
         "via-cli vpn status"
     ],
