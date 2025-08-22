@@ -367,6 +367,11 @@ class SyncStateMachine:
         
         age = datetime.now() - session.updated_at
         
+        # Never expire sessions that are actively rotating
+        if session.state == SyncState.ROTATING:
+            self.logger.info(f"SESSION NOT EXPIRED: {session.session_id} - State is ROTATING, keeping for cleanup")
+            return False
+        
         # PENDING_DONE sessions have a longer timeout (30 minutes)
         if session.state == SyncState.PENDING_DONE:
             pending_done_timeout = 1800  # 30 minutes
