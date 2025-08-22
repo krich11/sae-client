@@ -1702,7 +1702,26 @@ class UDPService:
                     validate_device_after_rotation=persona_config.get('validate_device_after_rotation', True)
                 )
                 
-                # Execute rotation with context
+                # Step 1: Pre-configure the new key
+                self.logger.info(f"Pre-configuring key {actual_key_id} using {persona_name} persona")
+                from src.personas.base_persona import PreConfigureContext
+                preconfigure_context = PreConfigureContext(
+                    key_id=actual_key_id,
+                    key_material=key_service.get_key(actual_key_id).key_material,
+                    device_interface=persona_config.get('device_interface'),
+                    encryption_algorithm=persona_config.get('encryption_algorithm', 'AES-256'),
+                    key_priority=persona_config.get('key_priority', 'normal'),
+                    custom_metadata=persona_config.get('custom_metadata', {})
+                )
+                
+                preconfigure_success = persona.pre_configure_key(preconfigure_context)
+                if not preconfigure_success:
+                    self.logger.error(f"Pre-configure failed using {persona_name} persona")
+                    return
+                
+                self.logger.info(f"Pre-configure completed successfully using {persona_name} persona")
+                
+                # Step 2: Execute rotation with context
                 success = persona.rotate_key(context)
                 if success:
                     self.logger.info(f"Executed key rotation using {persona_name} persona")
@@ -2012,7 +2031,26 @@ class UDPService:
                     validate_device_after_rotation=persona_config.get('validate_device_after_rotation', True)
                 )
                 
-                # Execute rotation with context
+                # Step 1: Pre-configure the new key
+                self.logger.info(f"Master pre-configuring key {actual_key_id} using {persona_name} persona")
+                from src.personas.base_persona import PreConfigureContext
+                preconfigure_context = PreConfigureContext(
+                    key_id=actual_key_id,
+                    key_material=key_service.get_key(actual_key_id).key_material,
+                    device_interface=persona_config.get('device_interface'),
+                    encryption_algorithm=persona_config.get('encryption_algorithm', 'AES-256'),
+                    key_priority=persona_config.get('key_priority', 'normal'),
+                    custom_metadata=persona_config.get('custom_metadata', {})
+                )
+                
+                preconfigure_success = persona.pre_configure_key(preconfigure_context)
+                if not preconfigure_success:
+                    self.logger.error(f"Master pre-configure failed using {persona_name} persona")
+                    return
+                
+                self.logger.info(f"Master pre-configure completed successfully using {persona_name} persona")
+                
+                # Step 2: Execute rotation with context
                 success = persona.rotate_key(context)
                 if success:
                     self.logger.info(f"Master executed key rotation using {persona_name} persona")
