@@ -19,6 +19,7 @@
     "sudo_user": "root",
     "sudo_password": null,
     "ppk_format": true,
+    "controller_ip": "192.168.201.34",
     
     "rotation_commands": [
         "pwd",

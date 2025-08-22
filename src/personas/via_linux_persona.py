@@ -68,29 +68,10 @@ class ViaLinuxPersona(LinuxShellPersona):
                 else:
                     print(f"      Could not get PPK.xml file details: {stderr}")
             
-            # Get the slave SAE ID from the key service
-            print(f"   🔍 Retrieving slave SAE information:")
-            from src.services.key_service import key_service
-            key = key_service.get_key(context.key_id)
-            
-            if key and key.allowed_sae_id:
-                # Get the slave SAE IP address from known peers
-                from src.services.sae_peers import sae_peers
-                peer_address = sae_peers.get_peer_address(key.allowed_sae_id)
-                
-                if peer_address:
-                    sae_ip = peer_address[0]  # Get the host/IP address
-                    print(f"      📋 Using slave SAE IP: {sae_ip} (from SAE ID: {key.allowed_sae_id})")
-                else:
-                    # Fallback to master SAE IP if slave not found in peers
-                    from src.config import config
-                    sae_ip = getattr(config, 'sae_ip', 'unknown')
-                    print(f"      ⚠️  Slave SAE {key.allowed_sae_id} not found in known peers, using master SAE IP: {sae_ip}")
-            else:
-                # Fallback to master SAE IP if no slave SAE ID found
-                from src.config import config
-                sae_ip = getattr(config, 'sae_ip', 'unknown')
-                print(f"      ⚠️  No slave SAE ID found, using master SAE IP: {sae_ip}")
+            # Get the controller IP from config
+            print(f"   🔍 Using controller IP from config:")
+            controller_ip = self.config.get('controller_ip', '192.168.201.34')
+            print(f"      📋 Using controller IP: {controller_ip}")
             
             # Generate random temporary file name
             temp_file = f"/tmp/{uuid.uuid4().hex}.tmp"
@@ -101,7 +82,7 @@ class ViaLinuxPersona(LinuxShellPersona):
 <PPK_PROFILE>
     <controllers>
         <controller>
-            <name>{sae_ip}</name>
+            <name>{controller_ip}</name>
             <PPK_ID>{context.key_id}</PPK_ID>
             <PPK_VAL>{context.key_material}</PPK_VAL>
         </controller>
@@ -109,7 +90,7 @@ class ViaLinuxPersona(LinuxShellPersona):
 </PPK_PROFILE>'''
             
             print(f"   📄 PPK.xml content preview:")
-            print(f"      SAE IP: {sae_ip}")
+            print(f"      Controller IP: {controller_ip}")
             print(f"      PPK ID: {context.key_id}")
             print(f"      PPK Value: {context.key_material[:20]}... (truncated)")
             
