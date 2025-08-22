@@ -14,8 +14,21 @@
     "ppk_format": true,
     
     "rotation_commands": [
-        "echo 'PPK rotation completed'",
+        "echo 'VIA PPK rotation completed'",
         "date >> /var/log/via-ppk.log"
+    ],
+    "post_rotation_commands": [
+        "systemctl reload via-service",
+        "echo 'VIA service reloaded after PPK rotation' >> /var/log/via-ppk.log"
+    ],
+    "post_preconfigure_commands": [
+        "mkdir -p /usr/share/via",
+        "chown root:root /usr/share/via",
+        "chmod 755 /usr/share/via"
+    ],
+    "post_deletion_commands": [
+        "echo 'VIA PPK deleted' >> /var/log/via-ppk.log",
+        "systemctl status via-service"
     ],
     
     "debug_mode": false,

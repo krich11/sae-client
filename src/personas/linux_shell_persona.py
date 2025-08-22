@@ -179,6 +179,20 @@ class LinuxShellPersona(BasePersona):
                 print(f"   ⚠️  Warning: Failed to set permissions: {stderr}")
                 # Continue anyway, as the key was written
             
+            # Execute any post-preconfigure commands
+            post_preconfigure_commands = self.config.get('post_preconfigure_commands', [])
+            if post_preconfigure_commands:
+                print(f"   🔄 Executing post-preconfigure commands")
+                for i, cmd in enumerate(post_preconfigure_commands, 1):
+                    print(f"   📝 Command {i}: {cmd}")
+                    success, stdout, stderr = self._execute_shell_command(cmd)
+                    if not success:
+                        print(f"   ❌ Post-preconfigure command {i} failed: {stderr}")
+                        return False
+                    print(f"   ✅ Post-preconfigure command {i} completed")
+            else:
+                print(f"   ℹ️  No custom post-preconfigure commands configured")
+            
             print(f"   ✅ Key {context.key_id} pre-configured successfully")
             return True
             
@@ -302,8 +316,22 @@ class LinuxShellPersona(BasePersona):
             else:
                 print(f"   ℹ️  No custom rotation commands configured")
             
-            # Step 4: Verify key file exists
-            print(f"   🔄 Step 4: Verifying key file")
+            # Step 4: Execute any post-rotation commands
+            post_rotation_commands = self.config.get('post_rotation_commands', [])
+            if post_rotation_commands:
+                print(f"   🔄 Step 4: Executing post-rotation commands")
+                for i, cmd in enumerate(post_rotation_commands, 1):
+                    print(f"   📝 Command {i}: {cmd}")
+                    success, stdout, stderr = self._execute_shell_command(cmd)
+                    if not success:
+                        print(f"   ❌ Post-rotation command {i} failed: {stderr}")
+                        return False
+                    print(f"   ✅ Post-rotation command {i} completed")
+            else:
+                print(f"   ℹ️  No custom post-rotation commands configured")
+            
+            # Step 5: Verify key file exists
+            print(f"   🔄 Step 5: Verifying key file")
             success, stdout, stderr = self._execute_shell_command(f"test -f {new_key_file} && echo 'exists'")
             if not success or 'exists' not in stdout:
                 print(f"   ❌ Key file verification failed")
@@ -353,6 +381,20 @@ class LinuxShellPersona(BasePersona):
             if success and 'still_exists' in stdout:
                 print(f"   ❌ Key file still exists after deletion")
                 return False
+            
+            # Execute any post-deletion commands
+            post_deletion_commands = self.config.get('post_deletion_commands', [])
+            if post_deletion_commands:
+                print(f"   🔄 Executing post-deletion commands")
+                for i, cmd in enumerate(post_deletion_commands, 1):
+                    print(f"   📝 Command {i}: {cmd}")
+                    success, stdout, stderr = self._execute_shell_command(cmd)
+                    if not success:
+                        print(f"   ❌ Post-deletion command {i} failed: {stderr}")
+                        return False
+                    print(f"   ✅ Post-deletion command {i} completed")
+            else:
+                print(f"   ℹ️  No custom post-deletion commands configured")
             
             print(f"   ✅ Key {key_id} successfully deleted and verified")
             return True

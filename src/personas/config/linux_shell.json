@@ -17,6 +17,15 @@
         "echo 'Key rotation completed'",
         "date >> /tmp/sae-rotation.log"
     ],
+    "post_rotation_commands": [
+        "echo 'Post-rotation cleanup'"
+    ],
+    "post_preconfigure_commands": [
+        "echo 'Post-preconfigure setup'"
+    ],
+    "post_deletion_commands": [
+        "echo 'Post-deletion cleanup'"
+    ],
     
     "debug_mode": false,
     
