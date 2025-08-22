@@ -8,6 +8,9 @@
     "simulation_mode": false,
     "operation_delay": 1.0,
     "command_timeout": 30,
+    "sudo_enabled": false,
+    "sudo_user": "root",
+    "sudo_password": null,
     
     "rotation_commands": [
         "echo 'Key rotation completed'",
@@ -28,7 +31,8 @@
             "shell-command-execution",
             "system-integration",
             "custom-scripts",
-            "persistent-key-storage"
+            "persistent-key-storage",
+            "sudo-execution"
         ]
     }
 }

@@ -31,6 +31,9 @@ class LinuxShellPersona(BasePersona):
         self.simulation_mode = config.get('simulation_mode', False)
         self.operation_delay = config.get('operation_delay', 1.0)  # seconds
         self.command_timeout = config.get('command_timeout', 30)  # seconds
+        self.sudo_enabled = config.get('sudo_enabled', False)
+        self.sudo_user = config.get('sudo_user', 'root')
+        self.sudo_password = config.get('sudo_password', None)
         
         super().__init__(config)
         
@@ -42,6 +45,10 @@ class LinuxShellPersona(BasePersona):
             print(f"   Simulation Mode: {self.simulation_mode}")
             print(f"   Operation Delay: {self.operation_delay}s")
             print(f"   Command Timeout: {self.command_timeout}s")
+            print(f"   Sudo Enabled: {self.sudo_enabled}")
+            if self.sudo_enabled:
+                print(f"   Sudo User: {self.sudo_user}")
+                print(f"   Sudo Password: {'***' if self.sudo_password else 'None'}")
     
     def _validate_config(self):
         """Validate Linux Shell persona configuration."""
@@ -87,12 +94,23 @@ class LinuxShellPersona(BasePersona):
             if timeout is None:
                 timeout = self.command_timeout
             
+            # Prepare command with sudo if enabled
+            if self.sudo_enabled:
+                if self.sudo_password:
+                    # Use echo to pipe password to sudo
+                    full_command = f"echo '{self.sudo_password}' | sudo -S -u {self.sudo_user} {command}"
+                else:
+                    # No password needed (NOPASSWD in sudoers)
+                    full_command = f"sudo -u {self.sudo_user} {command}"
+            else:
+                full_command = command
+            
             if self.config.get('debug_mode', False):
-                print(f"   🐚 Executing: {command}")
+                print(f"   🐚 Executing: {full_command}")
             
             # Execute command with timeout
             result = subprocess.run(
-                command,
+                full_command,
                 shell=True,
                 capture_output=True,
                 text=True,
@@ -350,5 +368,7 @@ class LinuxShellPersona(BasePersona):
             "shell_path": self.shell_path,
             "key_directory": self.key_directory,
             "simulation_mode": self.simulation_mode,
+            "sudo_enabled": self.sudo_enabled,
+            "sudo_user": self.sudo_user,
             "current_keys": self.get_current_keys()
         }
