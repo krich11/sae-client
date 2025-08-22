@@ -18,7 +18,6 @@
         "echo 'VIA PPK rotation completed'",
         "date >> /var/log/via-ppk.log",
         "systemctl reload via-service"
-    ]
-    
+    ],
     "debug_mode": false
 }
