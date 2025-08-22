@@ -365,7 +365,14 @@ class PersonaManager:
             module_name = f"src.personas.{persona_name}_persona"
             try:
                 # Convert persona_name to proper class name (handle underscores)
-                class_name = persona_name.replace('_', '').title() + "Persona"
+                # Special handling for common patterns
+                if persona_name == 'via_linux':
+                    class_name = 'ViaLinuxPersona'
+                else:
+                    class_name = persona_name.replace('_', '').title() + "Persona"
+                self.logger.info(f"Loading persona: {persona_name}")
+                self.logger.info(f"Module: {module_name}")
+                self.logger.info(f"Looking for class: {class_name}")
                 module = __import__(module_name, fromlist=[class_name])
                 persona_class = getattr(module, class_name)
                 
