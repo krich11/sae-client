@@ -15,9 +15,9 @@
     "ppk_format": true,
     
     "rotation_commands": [
-        "echo 'VIA PPK rotation completed'",
-        "date >> /var/log/via-ppk.log",
-        "systemctl reload via-service"
+        "qkd-rekey.sh",
+        "sleep 5",
+        "via-cli vpn status"
     ],
-    "debug_mode": false
+    "debug_mode": true
 }
