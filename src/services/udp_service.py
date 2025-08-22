@@ -1790,6 +1790,7 @@ class UDPService:
     
     def cleanup_old_sessions(self):
         """Clean up expired synchronization sessions and revert keys based on scheduled rotation time."""
+        self.logger.info(f"CLEANUP_OLD_SESSIONS CALLED - Current sessions: {list(self.sessions.keys())}")
         try:
             current_time = int(time.time())
             sessions_to_remove = []
@@ -1819,6 +1820,7 @@ class UDPService:
                         self.logger.info(f"Reverted key {key_id} to available due to expired session {session_id}")
                 
                 # Remove the session
+                self.logger.info(f"DELETING SESSION: {session_id} - State: {session.state} - Rotation time: {session.rotation_timestamp}")
                 del self.sessions[session_id]
                 self.logger.info(f"Cleaned up expired session: {session_id}")
                 
