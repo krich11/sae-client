@@ -228,14 +228,11 @@ class ViaLinuxPersona(LinuxShellPersona):
             via_dir_path = "/usr/share/via"
             status["via_directory_exists"] = f"{via_dir_exists} ({via_dir_path})"
             
-            # Check if PPK.xml exists and get its details
+            # Check if PPK.xml exists
             success, stdout, stderr = self._execute_shell_command("test -f /usr/share/via/PPK.xml && echo 'exists'")
             ppk_exists = success and 'exists' in stdout
-            status["ppk_file_exists"] = ppk_exists
-            
-            if ppk_exists:
-                # Get just the filename for PPK.xml
-                status["ppk_file_details"] = "/usr/share/via/PPK.xml"
+            ppk_path = "/usr/share/via/PPK.xml"
+            status["ppk_file_exists"] = f"{ppk_exists} ({ppk_path})" if ppk_exists else ppk_exists
                             
             # Comprehensive VIA service status check
             via_services = ["via-vpn", "via-service", "via"]
@@ -251,55 +248,22 @@ class ViaLinuxPersona(LinuxShellPersona):
                         # Parse status for key information
                         lines = stdout.split('\n')
                         active_status = "unknown"
-                        loaded_status = "unknown"
-                        pid_info = "unknown"
                         
                         for line in lines:
                             if 'Active:' in line:
                                 active_status = line.strip()
-                            elif 'Loaded:' in line:
-                                loaded_status = line.strip()
-                            elif 'Main PID:' in line:
-                                pid_info = line.strip()
+                                break
                         
                         service_status[service] = {
                             "exists": True,
-                            "active_status": active_status,
-                            "loaded_status": loaded_status,
-                            "pid_info": pid_info
+                            "active_status": active_status
                         }
                 else:
                     service_status[service] = {"exists": False}
             
             status["via_services"] = service_status
             
-            # Determine overall connection status based on comprehensive checks
-            connected = True
-            issues = []
-            
-            if not via_dir_exists:
-                connected = False
-                issues.append("VIA directory missing")
-            
-            # Check if any VIA service is actually running (not just exited)
-            any_service_running = False
-            for service, info in service_status.items():
-                if info.get("exists") and "active (running)" in info.get("active_status", ""):
-                    any_service_running = True
-                    break
-            
-            if not any_service_running:
-                connected = False
-                issues.append("No VIA services actively running")
-            
-            status["connected"] = connected
-            if issues:
-                status["connection_issues"] = issues
-            
             print(f"   ✅ Device status retrieved successfully")
-            print(f"   📋 Connection Status: {'✅ Connected' if connected else '❌ Disconnected'}")
-            if issues:
-                print(f"   ⚠️  Issues: {', '.join(issues)}")
             
             return status
             
