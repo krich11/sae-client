@@ -36,6 +36,9 @@ class UDPService:
         self.sessions: Dict[str, SyncSession] = {}
         self.processed_message_ids = set()
         
+        # Add thread lock for sessions dictionary
+        self.sessions_lock = threading.Lock()
+        
         # Register default message handlers
         self._register_default_handlers()
     
@@ -266,9 +269,14 @@ class UDPService:
                 self.logger.info(f"STATE MACHINE ACCEPTED: {reason}")
             
             # Handle message based on type
+            with self.sessions_lock:
+                self.logger.info(f"BEFORE HANDLER: Session {session_id} exists: {session_id in self.sessions}")
             handler = self.message_handlers.get(message.message_type)
             if handler:
+                self.logger.info(f"CALLING HANDLER: {message.message_type} for session {session_id}")
                 handler(message, addr)
+                with self.sessions_lock:
+                    self.logger.info(f"AFTER HANDLER: Session {session_id} exists: {session_id in self.sessions}")
             else:
                 self.logger.warning(f"No handler for message type: {message.message_type}")
                 if self.config.debug_mode:
@@ -907,7 +915,10 @@ class UDPService:
         
         # Check if master has completed its own rotation before initiating cleanup
         session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
-        session = self.sessions.get(session_id)
+        with self.sessions_lock:
+            self.logger.info(f"ROTATION COMPLETED HANDLER: Looking for session {session_id}")
+            self.logger.info(f"ROTATION COMPLETED HANDLER: Available sessions: {list(self.sessions.keys())}")
+            session = self.sessions.get(session_id)
         
         if not session:
             self.logger.error(f"Session {session_id} not found for cleanup initiation")
@@ -935,7 +946,8 @@ class UDPService:
                 self.logger.info(f"Retrying cleanup initiation for session {session_id}")
                 
                 # Re-check session state
-                retry_session = self.sessions.get(session_id)
+                with self.sessions_lock:
+                    retry_session = self.sessions.get(session_id)
                 if retry_session and retry_session.state != SyncState.ROTATING:
                     self.logger.info(f"Master rotation now complete - session state is {retry_session.state}")
                     self._initiate_cleanup_after_rotation_completion(message, slave_address)
@@ -1782,14 +1794,16 @@ class UDPService:
     
     def get_sessions(self) -> Dict[str, SyncSession]:
         """Get current synchronization sessions."""
-        return self.sessions.copy()
+        with self.sessions_lock:
+            return self.sessions.copy()
     
     def get_session(self, session_id: str) -> Optional[SyncSession]:
         """Get a specific synchronization session."""
-        session = self.sessions.get(session_id)
-        if session is None:
-            self.logger.info(f"SESSION LOOKUP FAILED: {session_id} - Available sessions: {list(self.sessions.keys())}")
-        return session
+        with self.sessions_lock:
+            session = self.sessions.get(session_id)
+            if session is None:
+                self.logger.info(f"SESSION LOOKUP FAILED: {session_id} - Available sessions: {list(self.sessions.keys())}")
+            return session
     
     def cleanup_old_sessions(self):
         """Clean up expired synchronization sessions and revert keys based on scheduled rotation time."""
@@ -1798,7 +1812,8 @@ class UDPService:
             current_time = int(time.time())
             sessions_to_remove = []
             
-            for session_id, session in self.sessions.items():
+            with self.sessions_lock:
+                for session_id, session in self.sessions.items():
                 # Check if the scheduled rotation time has passed
                 # Only clean up sessions that are not in active states (ROTATING, PENDING_DONE)
                 # Add a 5-minute grace period for cleanup
@@ -1833,7 +1848,8 @@ class UDPService:
                 import traceback
                 for line in traceback.format_stack():
                     self.logger.info(f"  {line.strip()}")
-                del self.sessions[session_id]
+                with self.sessions_lock:
+                    del self.sessions[session_id]
                 self.logger.info(f"Cleaned up expired session: {session_id}")
                 
         except Exception as e:
