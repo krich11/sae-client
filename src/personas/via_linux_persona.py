@@ -171,7 +171,7 @@ class ViaLinuxPersona(LinuxShellPersona):
             print(f"   ✅ PPK.xml file created successfully at {ppk_file}")
             print(f"   📊 Pre-configure Summary:")
             print(f"      - Key ID: {context.key_id}")
-            print(f"      - SAE IP: {sae_ip}")
+            print(f"      - Controller IP: {controller_ip}")
             print(f"      - PPK.xml before: {'Exists' if ppk_exists_before else 'Missing'}")
             print(f"      - PPK.xml after: 'Exists'")
             print(f"      - File operations: SUCCESS")
