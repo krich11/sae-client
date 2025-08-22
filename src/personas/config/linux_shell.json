@@ -15,7 +15,7 @@
     "rotation_commands": [
         "echo 'Key rotation completed'",
         "date >> /tmp/sae-rotation.log"
-    ]
+    ],
     
     "debug_mode": false
 }

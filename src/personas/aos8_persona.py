@@ -739,26 +739,31 @@ class Aos8Persona(BasePersona):
         print(f"🗑️  {self.persona_name} Persona: Delete Key with Verification")
         print(f"   Key ID: {key_id}")
         print(f"   Device IP: {self.device_ip}")
+        print(f"   🔄 Starting 3-step verification process...")
         
         # Step 1: Verify key exists before deletion
-        print(f"   🔍 Step 1: Verifying key presence...")
+        print(f"   🔍 Step 1: Checking if key exists on device...")
+        print(f"      Executing: show crypto-local isakmp ppk")
         if not self._verify_key_exists(key_id):
             print(f"   ⚠️  Key {key_id} not found on device - skipping deletion")
             return True  # Not an error if key doesn't exist
         
         # Step 2: Delete the key
-        print(f"   🗑️  Step 2: Deleting key...")
+        print(f"   🗑️  Step 2: Deleting key from device...")
+        print(f"      Executing: POST /configuration/object/isakmp_ppk_delete")
         if not self.delete_ppk(key_id):
             print(f"   ❌ Failed to delete key {key_id}")
             return False
         
         # Step 3: Verify key was deleted
-        print(f"   ✅ Step 3: Verifying key deletion...")
+        print(f"   ✅ Step 3: Confirming key was deleted...")
+        print(f"      Executing: show crypto-local isakmp ppk")
         if self._verify_key_exists(key_id):
             print(f"   ❌ Key {key_id} still exists after deletion")
             return False
         
         print(f"   ✅ Key {key_id} successfully deleted and verified")
+        print(f"   🎯 3-step verification process completed successfully")
         return True
     
     def _verify_key_exists(self, key_id: str) -> bool:
