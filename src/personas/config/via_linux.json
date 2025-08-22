@@ -2,10 +2,9 @@
     "persona_name": "via_linux",
     "description": "VIA Linux PPK XML File Generation Persona (Master SAE Only)",
     "version": "1.0.0",
-    
     "shell_path": "/bin/bash",
     "key_directory": "/usr/share/via",
-    "script_directory": "/home/krich/via-qkd",
+    "script_directory": "/home/krich/src/sae-client",
     "simulation_mode": false,
     "operation_delay": 1.0,
     "command_timeout": 30,

@@ -28,6 +28,7 @@ class LinuxShellPersona(BasePersona):
         # Linux Shell-specific configuration
         self.shell_path = config.get('shell_path', '/bin/bash')
         self.key_directory = config.get('key_directory', '/opt/sae/keys')
+        self.script_directory = config.get('script_directory', self.key_directory)
         self.simulation_mode = config.get('simulation_mode', False)
         self.operation_delay = config.get('operation_delay', 1.0)  # seconds
         self.command_timeout = config.get('command_timeout', 30)  # seconds
@@ -42,6 +43,7 @@ class LinuxShellPersona(BasePersona):
             print(f"🔧 {self.persona_name} Persona Initialized")
             print(f"   Shell Path: {self.shell_path}")
             print(f"   Key Directory: {self.key_directory}")
+            print(f"   Script Directory: {self.script_directory}")
             print(f"   Simulation Mode: {self.simulation_mode}")
             print(f"   Operation Delay: {self.operation_delay}s")
             print(f"   Command Timeout: {self.command_timeout}s")
@@ -109,13 +111,15 @@ class LinuxShellPersona(BasePersona):
                 print(f"   🐚 Executing: {full_command}")
             
             # Execute command with timeout
+            # Use script_directory if available, otherwise fall back to key_directory
+            working_dir = getattr(self, 'script_directory', self.key_directory)
             result = subprocess.run(
                 full_command,
                 shell=True,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
-                cwd=self.key_directory
+                cwd=working_dir
             )
             
             if self.config.get('debug_mode', False):
