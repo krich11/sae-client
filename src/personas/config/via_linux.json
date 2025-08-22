@@ -4,7 +4,7 @@
     "version": "1.0.0",
     "shell_path": "/bin/bash",
     "key_directory": "/usr/share/via",
-    "script_directory": "/home/krich/src/sae-client",
+    "script_directory": "/home/krich/via-qkd",
     "simulation_mode": false,
     "operation_delay": 1.0,
     "command_timeout": 30,
