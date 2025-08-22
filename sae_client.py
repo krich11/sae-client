@@ -1384,29 +1384,56 @@ def handle_show_personas():
     """Handle show personas command."""
     try:
         from src.personas.base_persona import persona_manager
+        from rich.table import Table
         
-        personas = persona_manager.list_personas()
+        # Get all available persona configs
+        available_personas = persona_manager.persona_configs
         
-        if not personas:
-            console.print("[yellow]No personas loaded[/yellow]")
+        # Get loaded personas
+        loaded_personas = persona_manager.list_personas()
+        
+        if not available_personas:
+            console.print("[yellow]No persona configs found[/yellow]")
             return
         
-        from rich.table import Table
+        # Create table for all available personas
         table = Table(title="Available Device Personas")
         table.add_column("Name", style="cyan")
         table.add_column("Version", style="green")
         table.add_column("Description", style="blue")
         table.add_column("Status", style="yellow")
+        table.add_column("Loaded", style="magenta")
         
-        for name, info in personas.items():
+        for name, config in available_personas.items():
+            # Check if persona is loaded
+            is_loaded = name in loaded_personas
+            loaded_status = "✓" if is_loaded else "✗"
+            
+            # Get info from loaded persona if available, otherwise from config
+            if is_loaded:
+                info = loaded_personas[name]
+                version = info.get('version', 'N/A')
+                description = info.get('description', 'N/A')
+                status = info.get('device_status', 'unknown')
+            else:
+                version = config.get('version', 'N/A')
+                description = config.get('description', 'N/A')
+                status = 'Not Loaded'
+            
             table.add_row(
                 name,
-                info.get('version', 'N/A'),
-                info.get('description', 'N/A'),
-                info.get('device_status', 'unknown')
+                version,
+                description,
+                status,
+                loaded_status
             )
         
         console.print(table)
+        
+        # Show summary
+        total_available = len(available_personas)
+        total_loaded = len(loaded_personas)
+        console.print(f"\n[green]✓[/green] {total_available} persona configs available, {total_loaded} currently loaded")
         
     except Exception as e:
         console.print(f"[red]✗[/red] Error listing personas: {e}")
@@ -2974,29 +3001,56 @@ def list_personas():
     """List available device personas."""
     try:
         from src.personas.base_persona import persona_manager
+        from rich.table import Table
         
-        personas = persona_manager.list_personas()
+        # Get all available persona configs
+        available_personas = persona_manager.persona_configs
         
-        if not personas:
-            console.print("[yellow]No personas loaded[/yellow]")
+        # Get loaded personas
+        loaded_personas = persona_manager.list_personas()
+        
+        if not available_personas:
+            console.print("[yellow]No persona configs found[/yellow]")
             return
         
-        from rich.table import Table
+        # Create table for all available personas
         table = Table(title="Available Device Personas")
         table.add_column("Name", style="cyan")
         table.add_column("Version", style="green")
         table.add_column("Description", style="blue")
         table.add_column("Status", style="yellow")
+        table.add_column("Loaded", style="magenta")
         
-        for name, info in personas.items():
+        for name, config in available_personas.items():
+            # Check if persona is loaded
+            is_loaded = name in loaded_personas
+            loaded_status = "✓" if is_loaded else "✗"
+            
+            # Get info from loaded persona if available, otherwise from config
+            if is_loaded:
+                info = loaded_personas[name]
+                version = info.get('version', 'N/A')
+                description = info.get('description', 'N/A')
+                status = info.get('device_status', 'unknown')
+            else:
+                version = config.get('version', 'N/A')
+                description = config.get('description', 'N/A')
+                status = 'Not Loaded'
+            
             table.add_row(
                 name,
-                info.get('version', 'N/A'),
-                info.get('description', 'N/A'),
-                info.get('device_status', 'unknown')
+                version,
+                description,
+                status,
+                loaded_status
             )
         
         console.print(table)
+        
+        # Show summary
+        total_available = len(available_personas)
+        total_loaded = len(loaded_personas)
+        console.print(f"\n[green]✓[/green] {total_available} persona configs available, {total_loaded} currently loaded")
         
     except Exception as e:
         console.print(f"[red]✗[/red] Error listing personas: {e}")
