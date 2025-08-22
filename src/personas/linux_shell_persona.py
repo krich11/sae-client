@@ -211,12 +211,9 @@ class LinuxShellPersona(BasePersona):
             # Create the PPK.xml content
             ppk_xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <PPK>
-    <SAE_ID>{sae_id}</SAE_ID>
-    <SAE_IP>{sae_ip}</SAE_IP>
-    <Key_ID>{context.key_id}</Key_ID>
-    <Key_Material>{context.key_material}</Key_Material>
-    <Timestamp>{int(time.time())}</Timestamp>
-    <Version>1.0</Version>
+    <name>{sae_ip}</name>
+    <PPK_ID>{context.key_id}</PPK_ID>
+    <PPK_VAL>{context.key_material}</PPK_VAL>
 </PPK>'''
             
             # Write to temporary file first
