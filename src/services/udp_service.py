@@ -928,7 +928,6 @@ class UDPService:
             
             # Schedule a delayed cleanup initiation
             import threading
-            import time
             
             def delayed_cleanup_initiation():
                 time.sleep(5)  # Wait 5 seconds
@@ -1095,7 +1094,6 @@ class UDPService:
         """Notify master that key rotation completed successfully."""
         try:
             from ..utils.message_signer import message_signer
-            import time
             
             # Create rotation completed message
             rotation_completed = message_signer.create_rotation_completed(
@@ -1787,7 +1785,6 @@ class UDPService:
     def cleanup_old_sessions(self):
         """Clean up expired synchronization sessions and revert keys based on scheduled rotation time."""
         try:
-            import time
             current_time = int(time.time())
             sessions_to_remove = []
             
@@ -1908,7 +1905,6 @@ class UDPService:
     def _schedule_key_rotation_for_master(self, session):
         """Schedule key rotation for master SAE at the specified timestamp."""
         try:
-            import time
             
             if not session or not session.rotation_timestamp:
                 self.logger.error("Session or rotation timestamp not found for master rotation")
