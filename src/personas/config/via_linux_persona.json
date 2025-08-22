@@ -15,37 +15,9 @@
     
     "rotation_commands": [
         "echo 'VIA PPK rotation completed'",
-        "date >> /var/log/via-ppk.log"
-    ],
-    "post_rotation_commands": [
-        "systemctl reload via-service",
-        "echo 'VIA service reloaded after PPK rotation' >> /var/log/via-ppk.log"
-    ],
-    "post_preconfigure_commands": [
-        "mkdir -p /usr/share/via",
-        "chown root:root /usr/share/via",
-        "chmod 755 /usr/share/via"
-    ],
-    "post_deletion_commands": [
-        "echo 'VIA PPK deleted' >> /var/log/via-ppk.log",
-        "systemctl status via-service"
-    ],
+        "date >> /var/log/via-ppk.log",
+        "systemctl reload via-service"
+    ]
     
-    "debug_mode": false,
-    
-    "metadata": {
-        "environment": "production",
-        "team": "network-security",
-        "project": "sae-client",
-        "device_model": "VIA-System",
-        "location": "datacenter",
-        "management_interface": "ppk-xml",
-        "supported_operations": [
-            "ppk-xml-generation",
-            "sudo-execution",
-            "system-integration",
-            "formatted-key-storage",
-            "master-sae-only"
-        ]
-    }
+    "debug_mode": false
 }

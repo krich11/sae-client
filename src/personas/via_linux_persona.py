@@ -93,7 +93,7 @@ class ViaLinuxPersona(LinuxShellPersona):
     
     def rotate_key(self, context):
         """
-        Rotate keys by creating new VIA PPK.xml file.
+        Rotate keys by executing rotation commands from config.
         
         Args:
             context: RotationContext containing rotation information
@@ -103,64 +103,27 @@ class ViaLinuxPersona(LinuxShellPersona):
         """
         print(f"🔄 {self.persona_name} Persona: Rotate Key")
         print(f"   Key ID: {context.key_id}")
-        print(f"   Creating new VIA PPK.xml file")
         
         try:
-            # Get the key material from the key service
-            from src.services.key_service import key_service
-            key = key_service.get_key(context.key_id)
-            if not key:
-                print(f"   ❌ Key {context.key_id} not found in key service")
-                return False
+            # Execute rotation commands from config
+            rotation_commands = self.config.get('rotation_commands', [])
+            if rotation_commands:
+                print(f"   🔄 Executing rotation commands")
+                for i, cmd in enumerate(rotation_commands, 1):
+                    print(f"   📝 Command {i}: {cmd}")
+                    success, stdout, stderr = self._execute_shell_command(cmd)
+                    if not success:
+                        print(f"   ❌ Rotation command {i} failed: {stderr}")
+                        return False
+                    print(f"   ✅ Rotation command {i} completed")
+            else:
+                print(f"   ℹ️  No rotation commands configured")
             
-            key_material = key.key_material
-            
-            # Get SAE configuration (master SAE)
-            from src.config import config_manager
-            sae_ip = config_manager.config.sae_ip  # Master SAE IP
-            
-            # Generate random temporary file name
-            temp_file = f"/tmp/{uuid.uuid4().hex}.tmp"
-            
-            # Create the PPK.xml content
-            ppk_xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
-<PPK>
-    <name>{sae_ip}</name>
-    <PPK_ID>{context.key_id}</PPK_ID>
-    <PPK_VAL>{key_material}</PPK_VAL>
-</PPK>'''
-            
-            # Write to temporary file first
-            print(f"   📝 Writing to temporary file: {temp_file}")
-            success, stdout, stderr = self._execute_shell_command(f"cat > {temp_file} << 'EOF'\n{ppk_xml_content}\nEOF")
-            
-            if not success:
-                print(f"   ❌ Failed to write temporary file: {stderr}")
-                return False
-            
-            # Move to final location with sudo
-            ppk_file = "/usr/share/via/PPK.xml"
-            print(f"   🔄 Moving to final location: {ppk_file}")
-            success, stdout, stderr = self._execute_shell_command(f"sudo mv {temp_file} {ppk_file}")
-            
-            if not success:
-                print(f"   ❌ Failed to move file to final location: {stderr}")
-                # Clean up temp file
-                self._execute_shell_command(f"rm -f {temp_file}")
-                return False
-            
-            # Set proper permissions
-            print(f"   🔐 Setting file permissions")
-            success, stdout, stderr = self._execute_shell_command(f"sudo chmod 644 {ppk_file}")
-            
-            if not success:
-                print(f"   ⚠️  Warning: Failed to set permissions: {stderr}")
-            
-            print(f"   ✅ PPK.xml file created successfully at {ppk_file}")
+            print(f"   ✅ Key rotation completed successfully")
             return True
             
         except Exception as e:
-            print(f"   ❌ PPK.xml creation failed: {e}")
+            print(f"   ❌ Key rotation failed: {e}")
             return False
     
     def delete_key(self, key_id: str) -> bool:

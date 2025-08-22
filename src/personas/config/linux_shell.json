@@ -12,48 +12,10 @@
     "sudo_user": "root",
     "sudo_password": null,
     
-    "preconfigure_commands": [
-        "echo 'Pre-configure setup'"
-    ],
-    "post_preconfigure_commands": [
-        "echo 'Post-preconfigure cleanup'"
-    ],
-    "pre_rotation_commands": [
-        "echo 'Pre-rotation setup'"
-    ],
     "rotation_commands": [
         "echo 'Key rotation completed'",
         "date >> /tmp/sae-rotation.log"
-    ],
-    "post_rotation_commands": [
-        "echo 'Post-rotation cleanup'"
-    ],
-    "pre_deletion_commands": [
-        "echo 'Pre-deletion setup'"
-    ],
-    "deletion_commands": [
-        "echo 'Key deletion completed'"
-    ],
-    "post_deletion_commands": [
-        "echo 'Post-deletion cleanup'"
-    ],
+    ]
     
-    "debug_mode": false,
-    
-    "metadata": {
-        "environment": "development",
-        "team": "network-security",
-        "project": "sae-client",
-        "device_model": "Linux-System",
-        "location": "local",
-        "management_interface": "shell",
-        "supported_operations": [
-            "file-based-key-storage",
-            "shell-command-execution",
-            "system-integration",
-            "custom-scripts",
-            "persistent-key-storage",
-            "sudo-execution"
-        ]
-    }
+    "debug_mode": false
 }

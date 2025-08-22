@@ -192,7 +192,7 @@ class LinuxShellPersona(BasePersona):
     
     def rotate_key(self, context: RotationContext) -> bool:
         """
-        Rotate keys by executing arbitrary shell commands.
+        Rotate keys by executing rotation commands from config.
         
         Args:
             context: RotationContext containing rotation information
@@ -203,24 +203,9 @@ class LinuxShellPersona(BasePersona):
         print(f"🔄 {self.persona_name} Persona: Rotate Key")
         print(f"   Key ID: {context.key_id}")
         print(f"   Rotation Timestamp: {context.rotation_timestamp}")
-        print(f"   Key Directory: {self.key_directory}")
         
         try:
-            # Execute pre-rotation commands
-            pre_rotation_commands = self.config.get('pre_rotation_commands', [])
-            if pre_rotation_commands:
-                print(f"   🔄 Executing pre-rotation commands")
-                for i, cmd in enumerate(pre_rotation_commands, 1):
-                    print(f"   📝 Command {i}: {cmd}")
-                    success, stdout, stderr = self._execute_shell_command(cmd)
-                    if not success:
-                        print(f"   ❌ Pre-rotation command {i} failed: {stderr}")
-                        return False
-                    print(f"   ✅ Pre-rotation command {i} completed")
-            else:
-                print(f"   ℹ️  No custom pre-rotation commands configured")
-            
-            # Execute rotation commands
+            # Execute rotation commands from config
             rotation_commands = self.config.get('rotation_commands', [])
             if rotation_commands:
                 print(f"   🔄 Executing rotation commands")
@@ -232,21 +217,7 @@ class LinuxShellPersona(BasePersona):
                         return False
                     print(f"   ✅ Rotation command {i} completed")
             else:
-                print(f"   ℹ️  No custom rotation commands configured")
-            
-            # Execute post-rotation commands
-            post_rotation_commands = self.config.get('post_rotation_commands', [])
-            if post_rotation_commands:
-                print(f"   🔄 Executing post-rotation commands")
-                for i, cmd in enumerate(post_rotation_commands, 1):
-                    print(f"   📝 Command {i}: {cmd}")
-                    success, stdout, stderr = self._execute_shell_command(cmd)
-                    if not success:
-                        print(f"   ❌ Post-rotation command {i} failed: {stderr}")
-                        return False
-                    print(f"   ✅ Post-rotation command {i} completed")
-            else:
-                print(f"   ℹ️  No custom post-rotation commands configured")
+                print(f"   ℹ️  No rotation commands configured")
             
             print(f"   ✅ Key rotation completed successfully")
             return True
