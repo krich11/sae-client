@@ -104,6 +104,12 @@ class ViaLinuxPersona(LinuxShellPersona):
             if not success:
                 print(f"   ⚠️  Warning: Failed to set permissions: {stderr}")
             
+             print(f"   🔐 Setting file ownership")
+            success, stdout, stderr = self._execute_shell_command(f"sudo chown root:root {ppk_file}")
+            
+            if not success:
+                print(f"   ⚠️  Warning: Failed to set ownership: {stderr}")
+            
             print(f"   ✅ PPK.xml file created successfully at {ppk_file}")
             return True
             
