@@ -5,6 +5,7 @@
     
     "shell_path": "/bin/bash",
     "key_directory": "/usr/share/via",
+    "script_directory": "/usr/local/bin",
     "simulation_mode": false,
     "operation_delay": 1.0,
     "command_timeout": 30,
