@@ -216,7 +216,6 @@ class ViaLinuxPersona(LinuxShellPersona):
         
         try:
             status = {
-                "connected": True,
                 "device_type": "VIA Linux",
                 "persona_name": self.persona_name,
                 "version": self.version,
@@ -225,17 +224,83 @@ class ViaLinuxPersona(LinuxShellPersona):
             
             # Check if VIA directory exists
             success, stdout, stderr = self._execute_shell_command("test -d /usr/share/via && echo 'exists'")
-            status["via_directory_exists"] = success and 'exists' in stdout
+            via_dir_exists = success and 'exists' in stdout
+            status["via_directory_exists"] = via_dir_exists
             
-            # Check if PPK.xml exists
+            # Check if PPK.xml exists and get its details
             success, stdout, stderr = self._execute_shell_command("test -f /usr/share/via/PPK.xml && echo 'exists'")
-            status["ppk_file_exists"] = success and 'exists' in stdout
+            ppk_exists = success and 'exists' in stdout
+            status["ppk_file_exists"] = ppk_exists
             
-            # Check VIA service status if available
-            success, stdout, stderr = self._execute_shell_command("systemctl is-active via-vpn 2>/dev/null || echo 'not_found'")
-            status["via_service_status"] = stdout.strip() if success else "unknown"
+            if ppk_exists:
+                # Get PPK.xml file details
+                success, stdout, stderr = self._execute_shell_command("ls -la /usr/share/via/PPK.xml")
+                if success:
+                    status["ppk_file_details"] = stdout.strip()
+                
+                # Get PPK.xml content preview (first few lines)
+                success, stdout, stderr = self._execute_shell_command("head -5 /usr/share/via/PPK.xml")
+                if success:
+                    status["ppk_content_preview"] = stdout.strip()
+            
+            # Comprehensive VIA service status check
+            via_services = ["via-vpn", "via-service", "via"]
+            service_status = {}
+            
+            for service in via_services:
+                # Check if service exists
+                success, stdout, stderr = self._execute_shell_command(f"systemctl list-unit-files {service}.service | grep {service}")
+                if success and service in stdout:
+                    # Get detailed service status
+                    success, stdout, stderr = self._execute_shell_command(f"systemctl status {service}.service --no-pager")
+                    if success:
+                        service_status[service] = {
+                            "exists": True,
+                            "status_output": stdout.strip()
+                        }
+                        
+                        # Parse status for key information
+                        lines = stdout.split('\n')
+                        for line in lines:
+                            if 'Active:' in line:
+                                service_status[service]["active_status"] = line.strip()
+                            elif 'Loaded:' in line:
+                                service_status[service]["loaded_status"] = line.strip()
+                            elif 'Main PID:' in line:
+                                service_status[service]["pid_info"] = line.strip()
+                else:
+                    service_status[service] = {"exists": False}
+            
+            status["via_services"] = service_status
+            
+            # Determine overall connection status based on comprehensive checks
+            connected = True
+            issues = []
+            
+            if not via_dir_exists:
+                connected = False
+                issues.append("VIA directory missing")
+            
+            # Check if any VIA service is actually running (not just exited)
+            any_service_running = False
+            for service, info in service_status.items():
+                if info.get("exists") and "active (running)" in info.get("active_status", ""):
+                    any_service_running = True
+                    break
+            
+            if not any_service_running:
+                connected = False
+                issues.append("No VIA services actively running")
+            
+            status["connected"] = connected
+            if issues:
+                status["connection_issues"] = issues
             
             print(f"   ✅ Device status retrieved successfully")
+            print(f"   📋 Connection Status: {'✅ Connected' if connected else '❌ Disconnected'}")
+            if issues:
+                print(f"   ⚠️  Issues: {', '.join(issues)}")
+            
             return status
             
         except Exception as e:
