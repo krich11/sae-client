@@ -232,7 +232,7 @@ class ViaLinuxPersona(LinuxShellPersona):
             status["ppk_file_exists"] = success and 'exists' in stdout
             
             # Check VIA service status if available
-            success, stdout, stderr = self._execute_shell_command("systemctl is-active via-service 2>/dev/null || echo 'not_found'")
+            success, stdout, stderr = self._execute_shell_command("systemctl is-active via-vpn 2>/dev/null || echo 'not_found'")
             status["via_service_status"] = stdout.strip() if success else "unknown"
             
             print(f"   ✅ Device status retrieved successfully")
