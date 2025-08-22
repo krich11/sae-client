@@ -155,7 +155,12 @@ class LinuxShellPersona(BasePersona):
         print(f"   Key Material: {len(context.key_material)} bytes")
         
         try:
-            # Create key file path
+            # Check if we should create a formatted PPK.xml file
+            ppk_format = self.config.get('ppk_format', False)
+            if ppk_format:
+                return self._create_ppk_xml_file(context)
+            
+            # Standard file-based storage
             key_file = os.path.join(self.key_directory, f"{context.key_id}.key")
             
             # Write key material to file
@@ -179,6 +184,72 @@ class LinuxShellPersona(BasePersona):
             
         except Exception as e:
             print(f"   ❌ Pre-configuration failed: {e}")
+            return False
+    
+    def _create_ppk_xml_file(self, context: PreConfigureContext) -> bool:
+        """
+        Create a formatted PPK.xml file with SAE information.
+        
+        Args:
+            context: PreConfigureContext containing key information
+            
+        Returns:
+            bool: True if PPK.xml creation was successful
+        """
+        print(f"   📄 Creating formatted PPK.xml file")
+        
+        try:
+            # Get SAE configuration
+            from src.config import config_manager
+            sae_id = config_manager.config.sae_id
+            sae_ip = config_manager.config.sae_ip
+            
+            # Generate random temporary file name
+            import uuid
+            temp_file = f"/tmp/{uuid.uuid4().hex}.tmp"
+            
+            # Create the PPK.xml content
+            ppk_xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<PPK>
+    <SAE_ID>{sae_id}</SAE_ID>
+    <SAE_IP>{sae_ip}</SAE_IP>
+    <Key_ID>{context.key_id}</Key_ID>
+    <Key_Material>{context.key_material}</Key_Material>
+    <Timestamp>{int(time.time())}</Timestamp>
+    <Version>1.0</Version>
+</PPK>'''
+            
+            # Write to temporary file first
+            print(f"   📝 Writing to temporary file: {temp_file}")
+            success, stdout, stderr = self._execute_shell_command(f"cat > {temp_file} << 'EOF'\n{ppk_xml_content}\nEOF")
+            
+            if not success:
+                print(f"   ❌ Failed to write temporary file: {stderr}")
+                return False
+            
+            # Move to final location with sudo
+            ppk_file = "/usr/share/via/PPK.xml"
+            print(f"   🔄 Moving to final location: {ppk_file}")
+            success, stdout, stderr = self._execute_shell_command(f"sudo mv {temp_file} {ppk_file}")
+            
+            if not success:
+                print(f"   ❌ Failed to move file to final location: {stderr}")
+                # Clean up temp file
+                self._execute_shell_command(f"rm -f {temp_file}")
+                return False
+            
+            # Set proper permissions
+            print(f"   🔐 Setting file permissions")
+            success, stdout, stderr = self._execute_shell_command(f"sudo chmod 644 {ppk_file}")
+            
+            if not success:
+                print(f"   ⚠️  Warning: Failed to set permissions: {stderr}")
+            
+            print(f"   ✅ PPK.xml file created successfully at {ppk_file}")
+            return True
+            
+        except Exception as e:
+            print(f"   ❌ PPK.xml creation failed: {e}")
             return False
     
     def rotate_key(self, context: RotationContext) -> bool:

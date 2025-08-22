@@ -11,6 +11,7 @@
     "sudo_enabled": false,
     "sudo_user": "root",
     "sudo_password": null,
+    "ppk_format": false,
     
     "rotation_commands": [
         "echo 'Key rotation completed'",
