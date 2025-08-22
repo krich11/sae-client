@@ -1,6 +1,6 @@
 {
-    "persona_name": "via_ppk",
-    "description": "VIA PPK XML File Generation Persona (Master SAE Only)",
+    "persona_name": "via_linux_persona",
+    "description": "VIA Linux PPK XML File Generation Persona (Master SAE Only)",
     "version": "1.0.0",
     
     "shell_path": "/bin/bash",
