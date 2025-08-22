@@ -1913,6 +1913,7 @@ def handle_key_notify(args):
                 console.print(f"[blue]DEBUG:[/blue] Session ID Characters: {[ord(c) for c in session_id[:20]]}...")
             
             # Create session in state machine
+            console.print(f"[blue]DEBUG:[/blue] Creating session: {session_id}")
             sync_state_machine.create_session(
                 session_id=session_id,
                 master_sae_id=config.sae_id,
@@ -1920,6 +1921,7 @@ def handle_key_notify(args):
                 key_ids=[key.key_id],
                 rotation_timestamp=rotation_timestamp
             )
+            console.print(f"[blue]DEBUG:[/blue] Session created: {session_id}")
             
             # Mark key as notified to this slave with rotation timestamp
             key_service.mark_key_as_notified(key.key_id, slave_id, rotation_timestamp)

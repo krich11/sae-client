@@ -88,6 +88,7 @@ class SyncStateMachine:
             session = self.sessions.get(session_id)
             
             # Clean up old sessions
+            self.logger.info(f"STATE MACHINE: Calling cleanup before message validation for session: {session_id}")
             self._cleanup_expired_sessions()
             
             # Check if this is a new session
@@ -376,12 +377,15 @@ class SyncStateMachine:
     
     def _cleanup_expired_sessions(self):
         """Clean up expired sessions."""
+        self.logger.info(f"STATE MACHINE CLEANUP CALLED - Current sessions: {list(self.sessions.keys())}")
         expired_sessions = []
         for session_id, session in self.sessions.items():
             if self._is_session_expired(session):
                 expired_sessions.append(session_id)
+                self.logger.info(f"SESSION MARKED FOR CLEANUP: {session_id} - State: {session.state} - Updated: {session.updated_at}")
         
         for session_id in expired_sessions:
+            self.logger.info(f"STATE MACHINE DELETING SESSION: {session_id}")
             del self.sessions[session_id]
             self.logger.info(f"Cleaned up expired session: {session_id}")
         

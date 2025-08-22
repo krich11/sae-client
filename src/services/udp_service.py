@@ -1786,7 +1786,10 @@ class UDPService:
     
     def get_session(self, session_id: str) -> Optional[SyncSession]:
         """Get a specific synchronization session."""
-        return self.sessions.get(session_id)
+        session = self.sessions.get(session_id)
+        if session is None:
+            self.logger.info(f"SESSION LOOKUP FAILED: {session_id} - Available sessions: {list(self.sessions.keys())}")
+        return session
     
     def cleanup_old_sessions(self):
         """Clean up expired synchronization sessions and revert keys based on scheduled rotation time."""
@@ -1826,6 +1829,10 @@ class UDPService:
                 
                 # Remove the session
                 self.logger.info(f"DELETING SESSION: {session_id} - State: {session.state} - Rotation time: {session.rotation_timestamp}")
+                self.logger.info(f"SESSION DELETION STACK TRACE:")
+                import traceback
+                for line in traceback.format_stack():
+                    self.logger.info(f"  {line.strip()}")
                 del self.sessions[session_id]
                 self.logger.info(f"Cleaned up expired session: {session_id}")
                 
