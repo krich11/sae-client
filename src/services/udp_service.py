@@ -911,6 +911,7 @@ class UDPService:
         
         if not session:
             self.logger.error(f"Session {session_id} not found for cleanup initiation")
+            self.logger.info(f"Available sessions: {list(self.sessions.keys())}")
             return
         
         # Check if master is currently in ROTATING state (rotation in progress)
@@ -940,6 +941,10 @@ class UDPService:
                     self._initiate_cleanup_after_rotation_completion(message, slave_address)
                 else:
                     self.logger.warning(f"Master rotation still in progress after delay - session state: {retry_session.state if retry_session else 'No session'}")
+                    # If session is not found, try to initiate cleanup anyway since master rotation is likely complete
+                    if not retry_session:
+                        self.logger.info(f"Session {session_id} not found, but attempting cleanup anyway")
+                        self._initiate_cleanup_after_rotation_completion(message, slave_address)
             
             # Start delayed cleanup in background thread
             cleanup_thread = threading.Thread(target=delayed_cleanup_initiation, daemon=True)
@@ -1791,9 +1796,14 @@ class UDPService:
             
             for session_id, session in self.sessions.items():
                 # Check if the scheduled rotation time has passed
-                if session.rotation_timestamp and current_time > session.rotation_timestamp:
+                # Only clean up sessions that are not in active states (ROTATING, PENDING_DONE)
+                if (session.rotation_timestamp and current_time > session.rotation_timestamp and 
+                    session.state not in [SyncState.ROTATING, SyncState.PENDING_DONE]):
                     sessions_to_remove.append(session_id)
                     self.logger.info(f"Session {session_id} expired - rotation time {session.rotation_timestamp} has passed")
+                elif (session.rotation_timestamp and current_time > session.rotation_timestamp and 
+                      session.state in [SyncState.ROTATING, SyncState.PENDING_DONE]):
+                    self.logger.info(f"Session {session_id} rotation time passed but state is {session.state} - keeping for cleanup")
             
             # Clean up expired sessions and revert keys
             for session_id in sessions_to_remove:

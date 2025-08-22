@@ -395,8 +395,8 @@ class SlaveNotificationService(NotificationService):
                         # Store the key
                         key_service.store_key(local_key)
                         self.logger.info(f"Stored key {key_id} from master {master_id}")
-                
-                return True
+        
+        return True
                 
             elif response.status_code == 401:
                 self.logger.error(f"Unauthorized: SAE {self.config.sae_id} was not authorized to request these keys")
