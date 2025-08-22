@@ -225,7 +225,8 @@ class ViaLinuxPersona(LinuxShellPersona):
             # Check if VIA directory exists
             success, stdout, stderr = self._execute_shell_command("test -d /usr/share/via && echo 'exists'")
             via_dir_exists = success and 'exists' in stdout
-            status["via_directory_exists"] = via_dir_exists
+            via_dir_path = "/usr/share/via"
+            status["via_directory_exists"] = f"{via_dir_exists} ({via_dir_path})"
             
             # Check if PPK.xml exists and get its details
             success, stdout, stderr = self._execute_shell_command("test -f /usr/share/via/PPK.xml && echo 'exists'")
@@ -233,16 +234,9 @@ class ViaLinuxPersona(LinuxShellPersona):
             status["ppk_file_exists"] = ppk_exists
             
             if ppk_exists:
-                # Get PPK.xml file details
-                success, stdout, stderr = self._execute_shell_command("ls -la /usr/share/via/PPK.xml")
-                if success:
-                    status["ppk_file_details"] = stdout.strip()
-                
-                # Get PPK.xml content preview (first few lines)
-                success, stdout, stderr = self._execute_shell_command("head -5 /usr/share/via/PPK.xml")
-                if success:
-                    status["ppk_content_preview"] = stdout.strip()
-            
+                # Get just the filename for PPK.xml
+                status["ppk_file_details"] = "/usr/share/via/PPK.xml"
+                            
             # Comprehensive VIA service status check
             via_services = ["via-vpn", "via-service", "via"]
             service_status = {}
@@ -254,20 +248,26 @@ class ViaLinuxPersona(LinuxShellPersona):
                     # Get detailed service status
                     success, stdout, stderr = self._execute_shell_command(f"systemctl status {service}.service --no-pager")
                     if success:
-                        service_status[service] = {
-                            "exists": True,
-                            "status_output": stdout.strip()
-                        }
-                        
                         # Parse status for key information
                         lines = stdout.split('\n')
+                        active_status = "unknown"
+                        loaded_status = "unknown"
+                        pid_info = "unknown"
+                        
                         for line in lines:
                             if 'Active:' in line:
-                                service_status[service]["active_status"] = line.strip()
+                                active_status = line.strip()
                             elif 'Loaded:' in line:
-                                service_status[service]["loaded_status"] = line.strip()
+                                loaded_status = line.strip()
                             elif 'Main PID:' in line:
-                                service_status[service]["pid_info"] = line.strip()
+                                pid_info = line.strip()
+                        
+                        service_status[service] = {
+                            "exists": True,
+                            "active_status": active_status,
+                            "loaded_status": loaded_status,
+                            "pid_info": pid_info
+                        }
                 else:
                     service_status[service] = {"exists": False}
             
