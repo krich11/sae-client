@@ -72,11 +72,15 @@ class ViaLinuxPersona(LinuxShellPersona):
             
             # Create the PPK.xml content
             ppk_xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
-<PPK>
-    <name>{sae_ip}</name>
-    <PPK_ID>{context.key_id}</PPK_ID>
-    <PPK_VAL>{context.key_material}</PPK_VAL>
-</PPK>'''
+<PPK_PROFILE>
+    <controllers>
+        <controller>
+            <name>{sae_ip}</name>
+            <PPK_ID>{context.key_id}</PPK_ID>
+            <PPK_VAL>{context.key_material}</PPK_VAL>
+        </controller>
+    </controllers>
+</PPK_PROFILE>'''
             
             # Write to temporary file first
             print(f"   📝 Writing to temporary file: {temp_file}")
