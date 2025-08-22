@@ -44,9 +44,19 @@ class ViaLinuxPersona(LinuxShellPersona):
         print(f"   Creating VIA PPK.xml file")
         
         try:
-            # Get SAE configuration (master SAE)
-            from src.config import config_manager
-            sae_ip = config_manager.config.sae_ip  # Master SAE IP
+            # Get the slave SAE ID from the key service
+            from src.services.key_service import key_service
+            key = key_service.get_key(context.key_id)
+            
+            if key and key.allowed_sae_id:
+                # Use the slave SAE ID as the IP (assuming SAE ID format includes IP)
+                sae_ip = key.allowed_sae_id
+                print(f"   📋 Using slave SAE ID: {sae_ip}")
+            else:
+                # Fallback to master SAE IP if no slave SAE ID found
+                from src.config import config
+                sae_ip = getattr(config, 'sae_ip', 'unknown')
+                print(f"   ⚠️  No slave SAE ID found, using master SAE IP: {sae_ip}")
             
             # Generate random temporary file name
             temp_file = f"/tmp/{uuid.uuid4().hex}.tmp"
