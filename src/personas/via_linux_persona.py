@@ -4,6 +4,9 @@ Specialized Linux Shell persona for VIA PPK XML file generation.
 Handles key management by creating formatted PPK.xml files for VIA systems.
 """
 
+import os
+import time
+import uuid
 from .linux_shell_persona import LinuxShellPersona
 
 
@@ -17,9 +20,6 @@ class ViaLinuxPersona(LinuxShellPersona):
         self.version = "1.0.0"
         self.description = "VIA Linux PPK XML File Generation Persona (Master SAE Only)"
         
-        # Force PPK format for VIA
-        config['ppk_format'] = True
-        
         super().__init__(config)
         
         # Only show initialization details in debug mode
@@ -27,4 +27,183 @@ class ViaLinuxPersona(LinuxShellPersona):
             print(f"🔧 {self.persona_name} Persona Initialized")
             print(f"   Specialized for VIA PPK XML generation")
             print(f"   Master SAE only")
-            print(f"   PPK Format: Enabled")
+    
+    def pre_configure_key(self, context):
+        """
+        Pre-configure a key by creating VIA PPK.xml file.
+        
+        Args:
+            context: PreConfigureContext containing key information
+            
+        Returns:
+            bool: True if pre-configuration was successful
+        """
+        print(f"🔧 {self.persona_name} Persona: Pre-configure Key")
+        print(f"   Key ID: {context.key_id}")
+        print(f"   Creating VIA PPK.xml file")
+        
+        try:
+            # Get SAE configuration (master SAE)
+            from src.config import config_manager
+            sae_ip = config_manager.config.sae_ip  # Master SAE IP
+            
+            # Generate random temporary file name
+            temp_file = f"/tmp/{uuid.uuid4().hex}.tmp"
+            
+            # Create the PPK.xml content
+            ppk_xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<PPK>
+    <name>{sae_ip}</name>
+    <PPK_ID>{context.key_id}</PPK_ID>
+    <PPK_VAL>{context.key_material}</PPK_VAL>
+</PPK>'''
+            
+            # Write to temporary file first
+            print(f"   📝 Writing to temporary file: {temp_file}")
+            success, stdout, stderr = self._execute_shell_command(f"cat > {temp_file} << 'EOF'\n{ppk_xml_content}\nEOF")
+            
+            if not success:
+                print(f"   ❌ Failed to write temporary file: {stderr}")
+                return False
+            
+            # Move to final location with sudo
+            ppk_file = "/usr/share/via/PPK.xml"
+            print(f"   🔄 Moving to final location: {ppk_file}")
+            success, stdout, stderr = self._execute_shell_command(f"sudo mv {temp_file} {ppk_file}")
+            
+            if not success:
+                print(f"   ❌ Failed to move file to final location: {stderr}")
+                # Clean up temp file
+                self._execute_shell_command(f"rm -f {temp_file}")
+                return False
+            
+            # Set proper permissions
+            print(f"   🔐 Setting file permissions")
+            success, stdout, stderr = self._execute_shell_command(f"sudo chmod 644 {ppk_file}")
+            
+            if not success:
+                print(f"   ⚠️  Warning: Failed to set permissions: {stderr}")
+            
+            print(f"   ✅ PPK.xml file created successfully at {ppk_file}")
+            return True
+            
+        except Exception as e:
+            print(f"   ❌ PPK.xml creation failed: {e}")
+            return False
+    
+    def rotate_key(self, context):
+        """
+        Rotate keys by creating new VIA PPK.xml file.
+        
+        Args:
+            context: RotationContext containing rotation information
+            
+        Returns:
+            bool: True if rotation was successful
+        """
+        print(f"🔄 {self.persona_name} Persona: Rotate Key")
+        print(f"   Key ID: {context.key_id}")
+        print(f"   Creating new VIA PPK.xml file")
+        
+        try:
+            # Get the key material from the key service
+            from src.services.key_service import key_service
+            key = key_service.get_key(context.key_id)
+            if not key:
+                print(f"   ❌ Key {context.key_id} not found in key service")
+                return False
+            
+            key_material = key.key_material
+            
+            # Get SAE configuration (master SAE)
+            from src.config import config_manager
+            sae_ip = config_manager.config.sae_ip  # Master SAE IP
+            
+            # Generate random temporary file name
+            temp_file = f"/tmp/{uuid.uuid4().hex}.tmp"
+            
+            # Create the PPK.xml content
+            ppk_xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<PPK>
+    <name>{sae_ip}</name>
+    <PPK_ID>{context.key_id}</PPK_ID>
+    <PPK_VAL>{key_material}</PPK_VAL>
+</PPK>'''
+            
+            # Write to temporary file first
+            print(f"   📝 Writing to temporary file: {temp_file}")
+            success, stdout, stderr = self._execute_shell_command(f"cat > {temp_file} << 'EOF'\n{ppk_xml_content}\nEOF")
+            
+            if not success:
+                print(f"   ❌ Failed to write temporary file: {stderr}")
+                return False
+            
+            # Move to final location with sudo
+            ppk_file = "/usr/share/via/PPK.xml"
+            print(f"   🔄 Moving to final location: {ppk_file}")
+            success, stdout, stderr = self._execute_shell_command(f"sudo mv {temp_file} {ppk_file}")
+            
+            if not success:
+                print(f"   ❌ Failed to move file to final location: {stderr}")
+                # Clean up temp file
+                self._execute_shell_command(f"rm -f {temp_file}")
+                return False
+            
+            # Set proper permissions
+            print(f"   🔐 Setting file permissions")
+            success, stdout, stderr = self._execute_shell_command(f"sudo chmod 644 {ppk_file}")
+            
+            if not success:
+                print(f"   ⚠️  Warning: Failed to set permissions: {stderr}")
+            
+            print(f"   ✅ PPK.xml file created successfully at {ppk_file}")
+            return True
+            
+        except Exception as e:
+            print(f"   ❌ PPK.xml creation failed: {e}")
+            return False
+    
+    def delete_key(self, key_id: str) -> bool:
+        """
+        Delete a key by removing VIA PPK.xml file.
+        
+        Args:
+            key_id: The key ID to delete
+            
+        Returns:
+            bool: True if deletion was successful
+        """
+        print(f"🗑️  {self.persona_name} Persona: Delete Key")
+        print(f"   Key ID: {key_id}")
+        print(f"   Removing VIA PPK.xml file")
+        
+        try:
+            ppk_file = "/usr/share/via/PPK.xml"
+            
+            # Check if PPK.xml exists
+            print(f"   🔍 Checking if PPK.xml exists")
+            success, stdout, stderr = self._execute_shell_command(f"test -f {ppk_file} && echo 'exists'")
+            if not success or 'exists' not in stdout:
+                print(f"   ⚠️  PPK.xml file not found - skipping deletion")
+                return True  # Not an error if file doesn't exist
+            
+            # Delete the PPK.xml file
+            print(f"   🗑️  Deleting PPK.xml file")
+            success, stdout, stderr = self._execute_shell_command(f"sudo rm -f {ppk_file}")
+            if not success:
+                print(f"   ❌ Failed to delete PPK.xml file: {stderr}")
+                return False
+            
+            # Verify deletion
+            print(f"   ✅ Verifying deletion")
+            success, stdout, stderr = self._execute_shell_command(f"test -f {ppk_file} && echo 'still_exists'")
+            if success and 'still_exists' in stdout:
+                print(f"   ❌ PPK.xml file still exists after deletion")
+                return False
+            
+            print(f"   ✅ PPK.xml file successfully deleted")
+            return True
+            
+        except Exception as e:
+            print(f"   ❌ PPK.xml deletion failed: {e}")
+            return False

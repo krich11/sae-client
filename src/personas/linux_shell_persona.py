@@ -141,7 +141,7 @@ class LinuxShellPersona(BasePersona):
     
     def pre_configure_key(self, context: PreConfigureContext) -> bool:
         """
-        Pre-configure a key by storing it in the Linux filesystem.
+        Pre-configure a key by executing arbitrary shell commands.
         
         Args:
             context: PreConfigureContext containing key information
@@ -155,29 +155,19 @@ class LinuxShellPersona(BasePersona):
         print(f"   Key Material: {len(context.key_material)} bytes")
         
         try:
-            # Check if we should create a formatted PPK.xml file
-            ppk_format = self.config.get('ppk_format', False)
-            if ppk_format:
-                return self._create_ppk_xml_file(context)
-            
-            # Standard file-based storage
-            key_file = os.path.join(self.key_directory, f"{context.key_id}.key")
-            
-            # Write key material to file
-            print(f"   📝 Writing key to file: {key_file}")
-            success, stdout, stderr = self._execute_shell_command(f"echo '{context.key_material}' > {key_file}")
-            
-            if not success:
-                print(f"   ❌ Failed to write key file: {stderr}")
-                return False
-            
-            # Set proper permissions (readable only by owner)
-            print(f"   🔐 Setting file permissions")
-            success, stdout, stderr = self._execute_shell_command(f"chmod 600 {key_file}")
-            
-            if not success:
-                print(f"   ⚠️  Warning: Failed to set permissions: {stderr}")
-                # Continue anyway, as the key was written
+            # Execute pre-configure commands
+            preconfigure_commands = self.config.get('preconfigure_commands', [])
+            if preconfigure_commands:
+                print(f"   🔄 Executing pre-configure commands")
+                for i, cmd in enumerate(preconfigure_commands, 1):
+                    print(f"   📝 Command {i}: {cmd}")
+                    success, stdout, stderr = self._execute_shell_command(cmd)
+                    if not success:
+                        print(f"   ❌ Pre-configure command {i} failed: {stderr}")
+                        return False
+                    print(f"   ✅ Pre-configure command {i} completed")
+            else:
+                print(f"   ℹ️  No custom pre-configure commands configured")
             
             # Execute any post-preconfigure commands
             post_preconfigure_commands = self.config.get('post_preconfigure_commands', [])
@@ -200,71 +190,9 @@ class LinuxShellPersona(BasePersona):
             print(f"   ❌ Pre-configuration failed: {e}")
             return False
     
-    def _create_ppk_xml_file(self, context: PreConfigureContext) -> bool:
-        """
-        Create a formatted PPK.xml file with SAE information.
-        
-        Args:
-            context: PreConfigureContext containing key information
-            
-        Returns:
-            bool: True if PPK.xml creation was successful
-        """
-        print(f"   📄 Creating formatted PPK.xml file")
-        
-        try:
-            # Get SAE configuration (master SAE)
-            from src.config import config_manager
-            sae_ip = config_manager.config.sae_ip  # Master SAE IP
-            
-            # Generate random temporary file name
-            import uuid
-            temp_file = f"/tmp/{uuid.uuid4().hex}.tmp"
-            
-            # Create the PPK.xml content
-            ppk_xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
-<PPK>
-    <name>{sae_ip}</name>
-    <PPK_ID>{context.key_id}</PPK_ID>
-    <PPK_VAL>{context.key_material}</PPK_VAL>
-</PPK>'''
-            
-            # Write to temporary file first
-            print(f"   📝 Writing to temporary file: {temp_file}")
-            success, stdout, stderr = self._execute_shell_command(f"cat > {temp_file} << 'EOF'\n{ppk_xml_content}\nEOF")
-            
-            if not success:
-                print(f"   ❌ Failed to write temporary file: {stderr}")
-                return False
-            
-            # Move to final location with sudo
-            ppk_file = "/usr/share/via/PPK.xml"
-            print(f"   🔄 Moving to final location: {ppk_file}")
-            success, stdout, stderr = self._execute_shell_command(f"sudo mv {temp_file} {ppk_file}")
-            
-            if not success:
-                print(f"   ❌ Failed to move file to final location: {stderr}")
-                # Clean up temp file
-                self._execute_shell_command(f"rm -f {temp_file}")
-                return False
-            
-            # Set proper permissions
-            print(f"   🔐 Setting file permissions")
-            success, stdout, stderr = self._execute_shell_command(f"sudo chmod 644 {ppk_file}")
-            
-            if not success:
-                print(f"   ⚠️  Warning: Failed to set permissions: {stderr}")
-            
-            print(f"   ✅ PPK.xml file created successfully at {ppk_file}")
-            return True
-            
-        except Exception as e:
-            print(f"   ❌ PPK.xml creation failed: {e}")
-            return False
-    
     def rotate_key(self, context: RotationContext) -> bool:
         """
-        Rotate keys by executing shell commands.
+        Rotate keys by executing arbitrary shell commands.
         
         Args:
             context: RotationContext containing rotation information
@@ -278,34 +206,24 @@ class LinuxShellPersona(BasePersona):
         print(f"   Key Directory: {self.key_directory}")
         
         try:
-            # Get the key material from the key service
-            from src.services.key_service import key_service
-            key = key_service.get_key(context.key_id)
-            if not key:
-                print(f"   ❌ Key {context.key_id} not found in key service")
-                return False
+            # Execute pre-rotation commands
+            pre_rotation_commands = self.config.get('pre_rotation_commands', [])
+            if pre_rotation_commands:
+                print(f"   🔄 Executing pre-rotation commands")
+                for i, cmd in enumerate(pre_rotation_commands, 1):
+                    print(f"   📝 Command {i}: {cmd}")
+                    success, stdout, stderr = self._execute_shell_command(cmd)
+                    if not success:
+                        print(f"   ❌ Pre-rotation command {i} failed: {stderr}")
+                        return False
+                    print(f"   ✅ Pre-rotation command {i} completed")
+            else:
+                print(f"   ℹ️  No custom pre-rotation commands configured")
             
-            key_material = key.key_material
-            
-            # Step 1: Create new key file
-            new_key_file = os.path.join(self.key_directory, f"{context.key_id}.key")
-            print(f"   🔄 Step 1: Creating new key file")
-            
-            success, stdout, stderr = self._execute_shell_command(f"echo '{key_material}' > {new_key_file}")
-            if not success:
-                print(f"   ❌ Failed to create new key file: {stderr}")
-                return False
-            
-            # Step 2: Set proper permissions
-            print(f"   🔄 Step 2: Setting file permissions")
-            success, stdout, stderr = self._execute_shell_command(f"chmod 600 {new_key_file}")
-            if not success:
-                print(f"   ⚠️  Warning: Failed to set permissions: {stderr}")
-            
-            # Step 3: Execute any custom rotation commands from config
+            # Execute rotation commands
             rotation_commands = self.config.get('rotation_commands', [])
             if rotation_commands:
-                print(f"   🔄 Step 3: Executing rotation commands")
+                print(f"   🔄 Executing rotation commands")
                 for i, cmd in enumerate(rotation_commands, 1):
                     print(f"   📝 Command {i}: {cmd}")
                     success, stdout, stderr = self._execute_shell_command(cmd)
@@ -316,10 +234,10 @@ class LinuxShellPersona(BasePersona):
             else:
                 print(f"   ℹ️  No custom rotation commands configured")
             
-            # Step 4: Execute any post-rotation commands
+            # Execute post-rotation commands
             post_rotation_commands = self.config.get('post_rotation_commands', [])
             if post_rotation_commands:
-                print(f"   🔄 Step 4: Executing post-rotation commands")
+                print(f"   🔄 Executing post-rotation commands")
                 for i, cmd in enumerate(post_rotation_commands, 1):
                     print(f"   📝 Command {i}: {cmd}")
                     success, stdout, stderr = self._execute_shell_command(cmd)
@@ -330,13 +248,6 @@ class LinuxShellPersona(BasePersona):
             else:
                 print(f"   ℹ️  No custom post-rotation commands configured")
             
-            # Step 5: Verify key file exists
-            print(f"   🔄 Step 5: Verifying key file")
-            success, stdout, stderr = self._execute_shell_command(f"test -f {new_key_file} && echo 'exists'")
-            if not success or 'exists' not in stdout:
-                print(f"   ❌ Key file verification failed")
-                return False
-            
             print(f"   ✅ Key rotation completed successfully")
             return True
             
@@ -346,7 +257,7 @@ class LinuxShellPersona(BasePersona):
     
     def delete_key(self, key_id: str) -> bool:
         """
-        Delete a key from the Linux filesystem.
+        Delete a key by executing arbitrary shell commands.
         
         Args:
             key_id: The key ID to delete
@@ -359,30 +270,35 @@ class LinuxShellPersona(BasePersona):
         print(f"   Key Directory: {self.key_directory}")
         
         try:
-            # Step 1: Check if key file exists
-            key_file = os.path.join(self.key_directory, f"{key_id}.key")
-            print(f"   🔍 Step 1: Checking if key file exists")
+            # Execute pre-deletion commands
+            pre_deletion_commands = self.config.get('pre_deletion_commands', [])
+            if pre_deletion_commands:
+                print(f"   🔄 Executing pre-deletion commands")
+                for i, cmd in enumerate(pre_deletion_commands, 1):
+                    print(f"   📝 Command {i}: {cmd}")
+                    success, stdout, stderr = self._execute_shell_command(cmd)
+                    if not success:
+                        print(f"   ❌ Pre-deletion command {i} failed: {stderr}")
+                        return False
+                    print(f"   ✅ Pre-deletion command {i} completed")
+            else:
+                print(f"   ℹ️  No custom pre-deletion commands configured")
             
-            success, stdout, stderr = self._execute_shell_command(f"test -f {key_file} && echo 'exists'")
-            if not success or 'exists' not in stdout:
-                print(f"   ⚠️  Key file {key_file} not found - skipping deletion")
-                return True  # Not an error if file doesn't exist
+            # Execute deletion commands
+            deletion_commands = self.config.get('deletion_commands', [])
+            if deletion_commands:
+                print(f"   🔄 Executing deletion commands")
+                for i, cmd in enumerate(deletion_commands, 1):
+                    print(f"   📝 Command {i}: {cmd}")
+                    success, stdout, stderr = self._execute_shell_command(cmd)
+                    if not success:
+                        print(f"   ❌ Deletion command {i} failed: {stderr}")
+                        return False
+                    print(f"   ✅ Deletion command {i} completed")
+            else:
+                print(f"   ℹ️  No custom deletion commands configured")
             
-            # Step 2: Delete the key file
-            print(f"   🗑️  Step 2: Deleting key file")
-            success, stdout, stderr = self._execute_shell_command(f"rm -f {key_file}")
-            if not success:
-                print(f"   ❌ Failed to delete key file: {stderr}")
-                return False
-            
-            # Step 3: Verify deletion
-            print(f"   ✅ Step 3: Verifying deletion")
-            success, stdout, stderr = self._execute_shell_command(f"test -f {key_file} && echo 'still_exists'")
-            if success and 'still_exists' in stdout:
-                print(f"   ❌ Key file still exists after deletion")
-                return False
-            
-            # Execute any post-deletion commands
+            # Execute post-deletion commands
             post_deletion_commands = self.config.get('post_deletion_commands', [])
             if post_deletion_commands:
                 print(f"   🔄 Executing post-deletion commands")
@@ -396,7 +312,7 @@ class LinuxShellPersona(BasePersona):
             else:
                 print(f"   ℹ️  No custom post-deletion commands configured")
             
-            print(f"   ✅ Key {key_id} successfully deleted and verified")
+            print(f"   ✅ Key {key_id} deletion completed successfully")
             return True
             
         except Exception as e:

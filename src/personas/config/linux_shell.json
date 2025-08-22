@@ -11,8 +11,16 @@
     "sudo_enabled": false,
     "sudo_user": "root",
     "sudo_password": null,
-    "ppk_format": false,
     
+    "preconfigure_commands": [
+        "echo 'Pre-configure setup'"
+    ],
+    "post_preconfigure_commands": [
+        "echo 'Post-preconfigure cleanup'"
+    ],
+    "pre_rotation_commands": [
+        "echo 'Pre-rotation setup'"
+    ],
     "rotation_commands": [
         "echo 'Key rotation completed'",
         "date >> /tmp/sae-rotation.log"
@@ -20,8 +28,11 @@
     "post_rotation_commands": [
         "echo 'Post-rotation cleanup'"
     ],
-    "post_preconfigure_commands": [
-        "echo 'Post-preconfigure setup'"
+    "pre_deletion_commands": [
+        "echo 'Pre-deletion setup'"
+    ],
+    "deletion_commands": [
+        "echo 'Key deletion completed'"
     ],
     "post_deletion_commands": [
         "echo 'Post-deletion cleanup'"
