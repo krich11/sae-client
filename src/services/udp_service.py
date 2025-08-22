@@ -1798,13 +1798,18 @@ class UDPService:
             for session_id, session in self.sessions.items():
                 # Check if the scheduled rotation time has passed
                 # Only clean up sessions that are not in active states (ROTATING, PENDING_DONE)
-                if (session.rotation_timestamp and current_time > session.rotation_timestamp and 
+                # Add a 5-minute grace period for cleanup
+                grace_period = 300  # 5 minutes
+                if (session.rotation_timestamp and current_time > (session.rotation_timestamp + grace_period) and 
                     session.state not in [SyncState.ROTATING, SyncState.PENDING_DONE]):
                     sessions_to_remove.append(session_id)
-                    self.logger.info(f"Session {session_id} expired - rotation time {session.rotation_timestamp} has passed")
+                    self.logger.info(f"Session {session_id} expired - rotation time {session.rotation_timestamp} has passed (with grace period)")
                 elif (session.rotation_timestamp and current_time > session.rotation_timestamp and 
                       session.state in [SyncState.ROTATING, SyncState.PENDING_DONE]):
                     self.logger.info(f"Session {session_id} rotation time passed but state is {session.state} - keeping for cleanup")
+                elif (session.rotation_timestamp and current_time > session.rotation_timestamp and 
+                      session.state not in [SyncState.ROTATING, SyncState.PENDING_DONE]):
+                    self.logger.info(f"Session {session_id} rotation time passed but within grace period - keeping for now")
             
             # Clean up expired sessions and revert keys
             for session_id in sessions_to_remove:
