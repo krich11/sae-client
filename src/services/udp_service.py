@@ -905,8 +905,42 @@ class UDPService:
                 "Address": f"{addr[0]}:{addr[1]}"
             })
         
-        # Master initiates cleanup protocol after receiving rotation completion
-        self.logger.info("Initiating cleanup protocol after receiving rotation completion")
+        # Check if master has completed its own rotation before initiating cleanup
+        session_id = f"{message.master_sae_id}_{message.slave_sae_id}_{message.original_message_id}"
+        session = self.sessions.get(session_id)
+        
+        if not session:
+            self.logger.error(f"Session {session_id} not found for cleanup initiation")
+            return
+        
+        # Check if master has completed its rotation
+        from src.services.key_service import key_service
+        new_key = key_service.get_key(message.new_key_id)
+        
+        if not new_key or new_key.status != 'IN_PRODUCTION':
+            self.logger.warning(f"Master rotation not yet completed - key {message.new_key_id} not in production")
+            self.logger.info("Scheduling delayed cleanup initiation - will retry in 5 seconds")
+            
+            # Schedule a delayed cleanup initiation
+            import threading
+            import time
+            
+            def delayed_cleanup_initiation():
+                time.sleep(5)  # Wait 5 seconds
+                self.logger.info(f"Retrying cleanup initiation for key {message.new_key_id}")
+                
+                # Re-check if master rotation is complete
+                retry_key = key_service.get_key(message.new_key_id)
+                if retry_key and retry_key.status == 'IN_PRODUCTION':
+                    self.logger.info(f"Master rotation now complete - proceeding with cleanup")
+                    self._initiate_cleanup_after_rotation_completion(message, slave_address)
+                else:
+                    self.logger.warning(f"Master rotation still not complete after delay - skipping cleanup")
+            
+            # Start delayed cleanup in background thread
+            cleanup_thread = threading.Thread(target=delayed_cleanup_initiation, daemon=True)
+            cleanup_thread.start()
+            return
         
         # Get slave connection details from peer registry (not from message source address)
         from .sae_peers import sae_peers
@@ -916,6 +950,15 @@ class UDPService:
             self.logger.error(f"Slave {message.slave_sae_id} not found in known peers")
             return
         
+        # Call the cleanup initiation method
+        self._initiate_cleanup_after_rotation_completion(message, slave_address)
+    
+    def _initiate_cleanup_after_rotation_completion(self, message, slave_address):
+        """Helper method to initiate cleanup protocol after confirming master rotation completion."""
+        if not slave_address:
+            self.logger.error(f"Slave address not provided for cleanup initiation")
+            return
+        
         slave_host, slave_port = slave_address
         
         # Debug logging for slave address lookup
@@ -923,7 +966,6 @@ class UDPService:
             self.logger.info(f"CLEANUP SLAVE ADDRESS LOOKUP:")
             self.logger.info(f"  Slave SAE: {message.slave_sae_id}")
             self.logger.info(f"  Found Address: {slave_host}:{slave_port}")
-            self.logger.info(f"  Original Source Address: {addr[0]}:{addr[1]}")
         
         # Initiate cleanup protocol
         self.initiate_cleanup_protocol(
