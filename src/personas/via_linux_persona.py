@@ -49,9 +49,18 @@ class ViaLinuxPersona(LinuxShellPersona):
             key = key_service.get_key(context.key_id)
             
             if key and key.allowed_sae_id:
-                # Use the slave SAE ID as the IP (assuming SAE ID format includes IP)
-                sae_ip = key.allowed_sae_id
-                print(f"   📋 Using slave SAE ID: {sae_ip}")
+                # Get the slave SAE IP address from known peers
+                from src.services.sae_peers import sae_peers
+                peer_address = sae_peers.get_peer_address(key.allowed_sae_id)
+                
+                if peer_address:
+                    sae_ip = peer_address[0]  # Get the host/IP address
+                    print(f"   📋 Using slave SAE IP: {sae_ip} (from SAE ID: {key.allowed_sae_id})")
+                else:
+                    # Fallback to master SAE IP if slave not found in peers
+                    from src.config import config
+                    sae_ip = getattr(config, 'sae_ip', 'unknown')
+                    print(f"   ⚠️  Slave SAE {key.allowed_sae_id} not found in known peers, using master SAE IP: {sae_ip}")
             else:
                 # Fallback to master SAE IP if no slave SAE ID found
                 from src.config import config
