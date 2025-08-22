@@ -1703,6 +1703,7 @@ class UDPService:
                 # Step 1: Pre-configure the new key
                 self.logger.info(f"Pre-configuring key {actual_key_id} using {persona_name} persona")
                 from src.personas.base_persona import PreConfigureContext
+                from src.services.key_service import key_service
                 preconfigure_context = PreConfigureContext(
                     key_id=actual_key_id,
                     key_material=key_service.get_key(actual_key_id).key_material,
@@ -2030,6 +2031,7 @@ class UDPService:
                 # Step 1: Pre-configure the new key
                 self.logger.info(f"Master pre-configuring key {actual_key_id} using {persona_name} persona")
                 from src.personas.base_persona import PreConfigureContext
+                from src.services.key_service import key_service
                 preconfigure_context = PreConfigureContext(
                     key_id=actual_key_id,
                     key_material=key_service.get_key(actual_key_id).key_material,
