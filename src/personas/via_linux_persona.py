@@ -7,6 +7,7 @@ Handles key management by creating formatted PPK.xml files for VIA systems.
 import os
 import time
 import uuid
+from typing import Dict, Any
 from .linux_shell_persona import LinuxShellPersona
 
 
@@ -170,3 +171,78 @@ class ViaLinuxPersona(LinuxShellPersona):
         except Exception as e:
             print(f"   ❌ PPK.xml deletion failed: {e}")
             return False
+    
+    def cleanup_old_keys(self) -> bool:
+        """
+        Clean up old/expired keys from the VIA system.
+        
+        Returns:
+            bool: True if cleanup was successful
+        """
+        print(f"🧹 {self.persona_name} Persona: Cleanup Old Keys")
+        
+        try:
+            # For VIA, we just need to remove the PPK.xml file
+            ppk_file = "/usr/share/via/PPK.xml"
+            
+            # Check if PPK.xml exists
+            success, stdout, stderr = self._execute_shell_command(f"test -f {ppk_file} && echo 'exists'")
+            if success and 'exists' in stdout:
+                # Remove the file
+                success, stdout, stderr = self._execute_shell_command(f"sudo rm -f {ppk_file}")
+                if success:
+                    print(f"   ✅ Cleaned up old PPK.xml file")
+                else:
+                    print(f"   ❌ Failed to remove PPK.xml file: {stderr}")
+                    return False
+            else:
+                print(f"   ℹ️  No PPK.xml file found to clean up")
+            
+            print(f"   ✅ Key cleanup completed successfully")
+            return True
+            
+        except Exception as e:
+            print(f"   ❌ Key cleanup failed: {e}")
+            return False
+    
+    def get_device_status(self) -> Dict[str, Any]:
+        """
+        Get current VIA device status.
+        
+        Returns:
+            Dict containing device status information
+        """
+        print(f"📊 {self.persona_name} Persona: Get Device Status")
+        
+        try:
+            status = {
+                "connected": True,
+                "device_type": "VIA Linux",
+                "persona_name": self.persona_name,
+                "version": self.version,
+                "description": self.description
+            }
+            
+            # Check if VIA directory exists
+            success, stdout, stderr = self._execute_shell_command("test -d /usr/share/via && echo 'exists'")
+            status["via_directory_exists"] = success and 'exists' in stdout
+            
+            # Check if PPK.xml exists
+            success, stdout, stderr = self._execute_shell_command("test -f /usr/share/via/PPK.xml && echo 'exists'")
+            status["ppk_file_exists"] = success and 'exists' in stdout
+            
+            # Check VIA service status if available
+            success, stdout, stderr = self._execute_shell_command("systemctl is-active via-service 2>/dev/null || echo 'not_found'")
+            status["via_service_status"] = stdout.strip() if success else "unknown"
+            
+            print(f"   ✅ Device status retrieved successfully")
+            return status
+            
+        except Exception as e:
+            print(f"   ❌ Failed to get device status: {e}")
+            return {
+                "connected": False,
+                "error": str(e),
+                "device_type": "VIA Linux",
+                "persona_name": self.persona_name
+            }
