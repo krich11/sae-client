@@ -68,7 +68,8 @@ COMMAND_HIERARCHY = {
             'keyid': {'<key_id>': {}}
         },
         'notify': {'<sae_id>': {}},
-        'rotate': {'<sae_id>': {}}
+        'rotate': {'<sae_id>': {}},
+        'set-state': {'<key_id>': {'<state>': {}}}
     },
     'persona': {
         'test': {'[persona_name]': {}},
@@ -1629,7 +1630,7 @@ def handle_key(args):
     """Handle key commands."""
     if not args:
         console.print("[yellow]Usage: key <subcommand>[/yellow]")
-        console.print("Available subcommands: request, reset, notify")
+        console.print("Available subcommands: request, reset, notify, rotate, set-state")
         return
     
     subcommand = args[0].lower()
@@ -1642,9 +1643,11 @@ def handle_key(args):
         handle_key_notify(args[1:])
     elif subcommand == 'rotate':
         handle_key_rotate(args[1:])
+    elif subcommand == 'set-state':
+        handle_key_set_state(args[1:])
     else:
         console.print(f"[yellow]Unknown key subcommand: {subcommand}[/yellow]")
-        console.print("Available subcommands: request, reset, notify, rotate")
+        console.print("Available subcommands: request, reset, notify, rotate, set-state")
 
 
 def handle_key_request(args):
@@ -2067,6 +2070,88 @@ def handle_key_rotate(args):
             
     except Exception as e:
         console.print(f"[red]✗[/red] Error during key rotation: {e}")
+        if config_manager.config.debug_mode:
+            import traceback
+            console.print("[blue]DEBUG:[/blue] Full error traceback:")
+            console.print(traceback.format_exc())
+
+
+def handle_key_set_state(args):
+    """Handle key set-state command to change a key's status."""
+    if len(args) < 2:
+        console.print("[yellow]Usage: key set-state <key_id> <state>[/yellow]")
+        console.print("[blue]Available states:[/blue]")
+        console.print("  • available - Key is available for use")
+        console.print("  • assigned - Key has been assigned to a slave (notified)")
+        console.print("  • in_production - Key has been rolled and is actively in use")
+        console.print("  • used - Key has been used (deprecated, use in_production instead)")
+        console.print("  • expired - Key has expired or been replaced during rotation")
+        console.print("  • revoked - Key has been revoked for security reasons")
+        console.print("  • rolled - Key has been rolled (transitional state)")
+        return
+    
+    key_id = args[0]
+    new_state = args[1].lower()
+    
+    # Validate state
+    valid_states = {
+        'available': 'AVAILABLE',
+        'assigned': 'ASSIGNED', 
+        'in_production': 'IN_PRODUCTION',
+        'used': 'USED',
+        'expired': 'EXPIRED',
+        'revoked': 'REVOKED',
+        'rolled': 'ROLLED'
+    }
+    
+    if new_state not in valid_states:
+        console.print(f"[red]✗[/red] Invalid state: {new_state}")
+        console.print("[blue]Available states:[/blue]")
+        for state, desc in valid_states.items():
+            console.print(f"  • {state}")
+        return
+    
+    try:
+        from src.services.key_service import key_service
+        from src.models.api_models import KeyStatus
+        
+        # Get the key first to check if it exists
+        key = key_service.get_key(key_id)
+        if not key:
+            console.print(f"[red]✗[/red] Key {key_id} not found")
+            return
+        
+        console.print(f"[blue]Current key state:[/blue] {key.status.value}")
+        console.print(f"[blue]Changing to state:[/blue] {new_state}")
+        
+        # Update the key status
+        key.status = KeyStatus(valid_states[new_state])
+        
+        # Add metadata about the state change
+        if key.metadata is None:
+            key.metadata = {}
+        key.metadata['state_changed_at'] = datetime.now().isoformat()
+        key.metadata['state_changed_by'] = 'manual_command'
+        key.metadata['previous_state'] = key.status.value
+        
+        # Save the updated key
+        key_service.storage.save_key(key)
+        
+        console.print(f"[green]✓[/green] Successfully changed key {key_id} state to {new_state}")
+        
+        # Show updated key info
+        console.print(f"\n[blue]Updated Key Information:[/blue]")
+        console.print(f"  • Key ID: {key.key_id}")
+        console.print(f"  • Status: {key.status.value}")
+        console.print(f"  • Type: {key.key_type.value}")
+        console.print(f"  • Size: {key.key_size} bits")
+        console.print(f"  • Source: {key.source}")
+        console.print(f"  • Created: {key.creation_time}")
+        if key.allowed_sae_id:
+            console.print(f"  • Allowed SAE: {key.allowed_sae_id}")
+        
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error changing key state: {e}")
         if config_manager.config.debug_mode:
             import traceback
             console.print("[blue]DEBUG:[/blue] Full error traceback:")
