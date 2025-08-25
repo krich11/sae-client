@@ -2443,7 +2443,13 @@ def handle_persona_status(args):
         
         for key, value in status.items():
             if isinstance(value, dict):
-                table.add_row(key, str(value)[:100] + "..." if len(str(value)) > 100 else str(value))
+                if key == "via_services":
+                    # Format via_services as pretty JSON
+                    import json
+                    json_str = json.dumps(value, indent=2)
+                    table.add_row(key, json_str)
+                else:
+                    table.add_row(key, str(value)[:100] + "..." if len(str(value)) > 100 else str(value))
             else:
                 table.add_row(key, str(value))
         
