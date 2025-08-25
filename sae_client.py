@@ -1037,6 +1037,8 @@ def show_help():
                                 - Reset key database (all keys or specific key)
   key notify <sae_id>           - Notify a slave SAE of available key
   key rotate <sae_id>           - Request keys and notify slave (combined operation)
+  key set-state <key_id> <state>
+                                - Change key status (available, assigned, in_production, etc.)
 
 [bold cyan]Persona Commands:[/bold cyan]
     persona test [persona_name]              - Test a device persona (uses configured if not specified)
