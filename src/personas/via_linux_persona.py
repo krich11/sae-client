@@ -419,6 +419,20 @@ class ViaLinuxPersona(LinuxShellPersona):
             ppk_exists = success and 'exists' in stdout
             ppk_path = "/usr/share/via/PPK.xml"
             status["ppk_file_exists"] = f"{ppk_exists} ({ppk_path})" if ppk_exists else ppk_exists
+            
+            # Read VIA VPN status file
+            success, stdout, stderr = self._execute_shell_command("cat /usr/share/via/status/vpn/status 2>/dev/null || echo 'File not found'")
+            if success and stdout.strip() and stdout.strip() != 'File not found':
+                status["via_status"] = stdout.strip()
+            else:
+                status["via_status"] = "File not found or empty"
+            
+            # Read VIA error info file
+            success, stdout, stderr = self._execute_shell_command("cat /usr/share/via/status/error/info 2>/dev/null || echo 'File not found'")
+            if success and stdout.strip() and stdout.strip() != 'File not found':
+                status["via_error"] = stdout.strip()
+            else:
+                status["via_error"] = "File not found or empty"
                             
             # Comprehensive VIA service status check
             via_services = ["via-vpn", "via-service", "via"]
