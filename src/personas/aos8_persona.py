@@ -566,6 +566,16 @@ class Aos8Persona(BasePersona):
                         "status_str": "Command completed successfully"
                     }
                 }, ""
+            elif command == "show crypto-local isakmp ppk":
+                return True, {
+                    "_data": [
+                        "PPK ID: 968e6106-37ac-42aa-b626-d033f0d5084f\\nStatus: Active\\nCreated: 2025-08-20 10:30:00 CDT\\nExpires: 2025-08-21 10:30:00 CDT\\n\\nPPK ID: d3227afb-dfc9-41fc-86e2-a1b3a6291e81\\nStatus: Rolled\\nCreated: 2025-08-19 10:30:00 CDT\\nExpires: 2025-08-20 10:30:00 CDT"
+                    ],
+                    "_global_result": {
+                        "status": "0",
+                        "status_str": "Command completed successfully"
+                    }
+                }, ""
             else:
                 return True, {
                     "_data": [f"Simulated output for: {command}"],
@@ -992,6 +1002,31 @@ class Aos8Persona(BasePersona):
                     if self.config.get('debug_mode', False):
                         print(f"   ❌ Version command failed: {error}")
                 
+                # Get configured PPKs
+                if self.config.get('debug_mode', False):
+                    print(f"   🔍 Executing 'show crypto-local isakmp ppk' command...")
+                success, response_data, error = self._execute_show_command("show crypto-local isakmp ppk")
+                if success:
+                    if response_data.get("_data"):
+                        ppk_output = response_data["_data"]
+                        # Process PPK output to handle escaped newlines
+                        if ppk_output and len(ppk_output) > 0:
+                            # Join the array and handle escaped newlines
+                            raw_output = ppk_output[0] if isinstance(ppk_output, list) else str(ppk_output)
+                            # Replace escaped newlines with actual newlines
+                            processed_output = raw_output.replace('\\n', '\n')
+                            status_data["configured_ppks"] = processed_output
+                            if self.config.get('debug_mode', False):
+                                print(f"   ✅ PPK command successful")
+                        else:
+                            status_data["configured_ppks"] = "No PPK information available"
+                    else:
+                        status_data["configured_ppks"] = "No PPK data returned"
+                else:
+                    status_data["configured_ppks"] = f"Error: {error}"
+                    if self.config.get('debug_mode', False):
+                        print(f"   ❌ PPK command failed: {error}")
+                
                 # Logout when done
                 self._logout()
                 
@@ -1011,6 +1046,17 @@ class Aos8Persona(BasePersona):
                     "AOS-8 (MODEL: ArubaMC-VA-US), Version 8.13.0.1-FIPS LSR",
                     "Website: http://www.arubanetworks.com",
                     "(c) Copyright 2025 Hewlett Packard Enterprise Development LP."
+                ],
+                "configured_ppks": [
+                    "PPK ID: 968e6106-37ac-42aa-b626-d033f0d5084f",
+                    "Status: Active",
+                    "Created: 2025-08-20 10:30:00 CDT",
+                    "Expires: 2025-08-21 10:30:00 CDT",
+                    "",
+                    "PPK ID: d3227afb-dfc9-41fc-86e2-a1b3a6291e81",
+                    "Status: Rolled",
+                    "Created: 2025-08-19 10:30:00 CDT",
+                    "Expires: 2025-08-20 10:30:00 CDT"
                 ]
             })
         
