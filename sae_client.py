@@ -2450,6 +2450,9 @@ def handle_persona_status(args):
                     table.add_row(key, json_str)
                 else:
                     table.add_row(key, str(value)[:100] + "..." if len(str(value)) > 100 else str(value))
+            elif key == "configured_ppks":
+                # Format configured_ppks as multi-line output
+                table.add_row(key, str(value))
             else:
                 table.add_row(key, str(value))
         

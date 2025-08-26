@@ -1009,13 +1009,18 @@ class Aos8Persona(BasePersona):
                 if success:
                     if response_data.get("_data"):
                         ppk_output = response_data["_data"]
-                        # Process PPK output to handle escaped newlines
+                        # Process PPK output to handle multi-line array
                         if ppk_output and len(ppk_output) > 0:
-                            # Join the array and handle escaped newlines
-                            raw_output = ppk_output[0] if isinstance(ppk_output, list) else str(ppk_output)
-                            # Replace escaped newlines with actual newlines
-                            processed_output = raw_output.replace('\\n', '\n')
-                            status_data["configured_ppks"] = processed_output
+                            if isinstance(ppk_output, list):
+                                # Join all lines with newlines and handle escaped newlines
+                                raw_output = '\n'.join(ppk_output)
+                                # Replace escaped newlines with actual newlines
+                                processed_output = raw_output.replace('\\n', '\n')
+                                status_data["configured_ppks"] = processed_output
+                            else:
+                                # Single string output
+                                processed_output = str(ppk_output).replace('\\n', '\n')
+                                status_data["configured_ppks"] = processed_output
                             if self.config.get('debug_mode', False):
                                 print(f"   ✅ PPK command successful")
                         else:
