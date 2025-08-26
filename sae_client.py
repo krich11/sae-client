@@ -47,7 +47,8 @@ COMMAND_HIERARCHY = {
         'scheduled': {},
         'personas': {},
         'peer': {'[peer_id]': {}},
-        'env': {}
+        'env': {},
+        'tasks': {}
     },
     'key': {
         'request': {
@@ -68,7 +69,10 @@ COMMAND_HIERARCHY = {
             'keyid': {'<key_id>': {}}
         },
         'notify': {'<sae_id>': {}},
-        'rotate': {'<sae_id>': {}},
+        'rotate': {'<sae_id>': {
+            '[start <interval>]': {},
+            '[stop]': {}
+        }},
         'set-state': {'<key_id>': {'<state>': {}}}
     },
     'persona': {
@@ -971,6 +975,13 @@ def interactive():
     except Exception as e:
         console.print(f"[yellow]Warning: Could not start UDP listener: {e}[/yellow]")
     
+    # Initialize background task manager
+    try:
+        from src.services.background_task_manager import background_task_manager
+        console.print(f"[blue]✓[/blue] Background task manager initialized")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Could not initialize background task manager: {e}[/yellow]")
+    
     while True:
         try:
             # Add debug indicator to prompt if debug mode is enabled
@@ -1025,6 +1036,7 @@ def show_help():
   show keys [keyid <key_id>]    - List local keys (optionally filter by key ID)
   show sync status              - Show synchronization status and sessions
   show scheduled                - Show scheduled key rotations with timestamps
+  show tasks                    - Show background tasks
   show personas                 - List available device personas
   show peer [peer_id]           - List known SAE peers (optionally show specific peer)
 
@@ -1037,6 +1049,9 @@ def show_help():
                                 - Reset key database (all keys or specific key)
   key notify <sae_id>           - Notify a slave SAE of available key
   key rotate <sae_id>           - Request keys and notify slave (combined operation)
+  key rotate <sae_id> start <interval>
+                                - Start interval-based key rotation (interval in minutes)
+  key rotate <sae_id> stop      - Stop interval-based key rotation
   key set-state <key_id> <state>
                                 - Change key status (available, assigned, in_production, etc.)
 
@@ -1142,8 +1157,11 @@ def handle_show(args):
         handle_show_scheduled(args[1:] if len(args) > 1 else [])
     elif subcommand == 'env':
         handle_show_env(args[1:] if len(args) > 1 else [])
+    elif subcommand == 'tasks':
+        handle_show_tasks(args[1:] if len(args) > 1 else [])
     else:
         console.print(f"[yellow]Unknown show subcommand: {subcommand}[/yellow]")
+        console.print("Available subcommands: health, status, keys, sync, scheduled, personas, peer, env, tasks")
 
 
 def handle_show_health():
@@ -1628,6 +1646,83 @@ def handle_show_scheduled(args):
         console.print(f"[red]✗[/red] Error displaying scheduled rotations: {e}")
 
 
+def handle_show_tasks(args):
+    """Handle show tasks command."""
+    try:
+        from src.services.background_task_manager import background_task_manager
+        from rich.table import Table
+        import time
+        
+        # Get all tasks
+        tasks = background_task_manager.list_tasks()
+        
+        if not tasks:
+            console.print("[yellow]No background tasks running[/yellow]")
+            return
+        
+        # Create tasks table
+        table = Table(title="Background Tasks")
+        table.add_column("Task ID", style="cyan", width=25)
+        table.add_column("Type", style="green", width=15)
+        table.add_column("Interval", style="blue", width=15)
+        table.add_column("Status", style="yellow", width=10)
+        table.add_column("Run Count", style="magenta", width=10)
+        table.add_column("Last Run", style="white", width=20)
+        table.add_column("Next Run", style="white", width=20)
+        
+        current_time = time.time()
+        
+        for task_id, task in tasks.items():
+            # Determine task type from ID
+            task_type = "Unknown"
+            if task_id.startswith("key_rotation_"):
+                task_type = "Key Rotation"
+                slave_id = task_id.replace("key_rotation_", "")
+                task_id_display = f"Rotation: {slave_id}"
+            else:
+                task_id_display = task_id
+            
+            # Format interval
+            interval_str = f"{task['interval_minutes']}m"
+            
+            # Determine status
+            status = "Running" if task['running'] else "Stopped"
+            status_color = "green" if task['running'] else "red"
+            
+            # Format last run
+            last_run = task.get('last_run')
+            last_run_str = "Never" if last_run is None else last_run.strftime('%H:%M:%S')
+            
+            # Format next run
+            next_run = task.get('next_run')
+            if next_run:
+                if next_run > current_time:
+                    time_until = next_run - current_time
+                    minutes = int(time_until // 60)
+                    seconds = int(time_until % 60)
+                    next_run_str = f"{minutes}m {seconds}s"
+                else:
+                    next_run_str = "Due"
+            else:
+                next_run_str = "Unknown"
+            
+            table.add_row(
+                task_id_display,
+                task_type,
+                interval_str,
+                f"[{status_color}]{status}[/{status_color}]",
+                str(task['run_count']),
+                last_run_str,
+                next_run_str
+            )
+        
+        console.print(table)
+        console.print(f"[dim]Total background tasks: {len(tasks)}[/dim]")
+        
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error showing background tasks: {e}")
+
+
 def handle_key(args):
     """Handle key commands."""
     if not args:
@@ -1957,10 +2052,34 @@ def handle_key_notify(args):
 def handle_key_rotate(args):
     """Handle key rotate command - combines key request and notify."""
     if not args:
-        console.print("[yellow]Usage: key rotate <sae_id>[/yellow]")
+        console.print("[yellow]Usage: key rotate <sae_id> [ [ start <interval in minutes> ] | [ stop ] ][/yellow]")
+        console.print("[blue]Examples:[/blue]")
+        console.print("  key rotate SAE_002                    - Single rotation")
+        console.print("  key rotate SAE_002 start 30            - Rotate every 30 minutes")
+        console.print("  key rotate SAE_002 stop                - Stop interval rotation")
         return
     
     slave_id = args[0]
+    
+    # Check for interval options
+    if len(args) > 1:
+        if args[1] == "start" and len(args) >= 3:
+            try:
+                interval_minutes = int(args[2])
+                if interval_minutes < 1:
+                    console.print("[red]✗[/red] Interval must be at least 1 minute")
+                    return
+                _start_interval_rotation(slave_id, interval_minutes)
+                return
+            except ValueError:
+                console.print("[red]✗[/red] Invalid interval value. Must be a number.")
+                return
+        elif args[1] == "stop":
+            _stop_interval_rotation(slave_id)
+            return
+        else:
+            console.print("[red]✗[/red] Invalid option. Use 'start <interval>' or 'stop'")
+            return
     
     console.print(f"[blue]Starting key rotation for slave {slave_id}...[/blue]")
     
@@ -2076,6 +2195,173 @@ def handle_key_rotate(args):
             import traceback
             console.print("[blue]DEBUG:[/blue] Full error traceback:")
             console.print(traceback.format_exc())
+
+
+def _start_interval_rotation(slave_id: str, interval_minutes: int):
+    """Start interval-based key rotation for a slave."""
+    task_id = f"key_rotation_{slave_id}"
+    
+    try:
+        from src.services.background_task_manager import background_task_manager
+        
+        # Check if task already exists
+        existing_task = background_task_manager.get_task_status(task_id)
+        if existing_task:
+            console.print(f"[yellow]⚠[/yellow] Interval rotation for {slave_id} is already running")
+            console.print(f"[blue]Current interval:[/blue] {existing_task['interval_minutes']} minutes")
+            console.print(f"[blue]Next run:[/blue] {existing_task['next_run']}")
+            console.print(f"[blue]Run count:[/blue] {existing_task['run_count']}")
+            return
+        
+        # Start the interval task
+        success = background_task_manager.start_interval_task(
+            task_id=task_id,
+            task_func=_execute_single_rotation,
+            interval_minutes=interval_minutes,
+            slave_id=slave_id
+        )
+        
+        if success:
+            console.print(f"[green]✓[/green] Started interval key rotation for {slave_id}")
+            console.print(f"[blue]Interval:[/blue] {interval_minutes} minutes")
+            console.print(f"[blue]Task ID:[/blue] {task_id}")
+            console.print(f"[yellow]Use 'key rotate {slave_id} stop' to stop the interval rotation[/yellow]")
+        else:
+            console.print(f"[red]✗[/red] Failed to start interval rotation for {slave_id}")
+            
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error starting interval rotation: {e}")
+
+
+def _stop_interval_rotation(slave_id: str):
+    """Stop interval-based key rotation for a slave."""
+    task_id = f"key_rotation_{slave_id}"
+    
+    try:
+        from src.services.background_task_manager import background_task_manager
+        
+        # Check if task exists
+        existing_task = background_task_manager.get_task_status(task_id)
+        if not existing_task:
+            console.print(f"[yellow]⚠[/yellow] No interval rotation found for {slave_id}")
+            return
+        
+        # Stop the task
+        success = background_task_manager.stop_task(task_id)
+        
+        if success:
+            console.print(f"[green]✓[/green] Stopped interval key rotation for {slave_id}")
+            console.print(f"[blue]Total runs:[/blue] {existing_task['run_count']}")
+            console.print(f"[blue]Last run:[/blue] {existing_task['last_run']}")
+        else:
+            console.print(f"[red]✗[/red] Failed to stop interval rotation for {slave_id}")
+            
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error stopping interval rotation: {e}")
+
+
+def _execute_single_rotation(slave_id: str):
+    """Execute a single key rotation (used by background task manager)."""
+    try:
+        console.print(f"[blue]🔄 Executing scheduled key rotation for {slave_id}...[/blue]")
+        
+        # Step 1: Request encryption keys for the slave
+        from src.services.key_service import key_service
+        from src.models.api_models import KeyType
+        
+        response = key_service.request_keys_from_kme(
+            KeyType.ENCRYPTION, 
+            256,  # Default key size
+            1,    # Default quantity
+            slave_sae_id=slave_id
+        )
+        
+        console.print(f"[green]✓[/green] Successfully received and stored {len(response.keys)} keys")
+        
+        # Step 2: Notify the slave about the key
+        available_keys = key_service.get_available_keys(allowed_sae_id=slave_id)
+        
+        if not available_keys:
+            console.print(f"[red]✗[/red] No keys available for slave {slave_id} after request")
+            return
+        
+        # Use the first available key for this slave
+        key = available_keys[0]
+        
+        # Use UDP synchronization system for actual network communication
+        from src.services.udp_service import udp_service
+        from src.utils.message_signer import message_signer
+        from src.services.sae_peers import sae_peers
+        import time
+        
+        # Try to get slave address from known peers
+        peer_address = sae_peers.get_peer_address(slave_id)
+        if not peer_address:
+            console.print(f"[red]✗[/red] Slave {slave_id} not found in known peers")
+            return
+        
+        slave_host, slave_port = peer_address
+        
+        # Get persona timing configuration
+        try:
+            from src.personas.base_persona import persona_manager
+            persona_name = config.device_persona
+            persona_instance = persona_manager.load_persona(persona_name)
+            
+            if persona_instance:
+                # Use persona's initial roll delay
+                rotation_timestamp = persona_instance.calculate_rotation_timestamp()
+            else:
+                # Fallback to default timing
+                rotation_timestamp = int(time.time()) + 300  # 5 minutes
+        except Exception as e:
+            # Fallback to default timing
+            rotation_timestamp = int(time.time()) + 300  # 5 minutes
+        
+        # Create key notification message
+        signed_message = message_signer.create_key_notification(
+            key_ids=[key.key_id],
+            rotation_timestamp=rotation_timestamp,
+            master_sae_id=config.sae_id,
+            slave_sae_id=slave_id
+        )
+        
+        # Send message via UDP
+        success = udp_service.send_message(signed_message, slave_host, slave_port)
+        
+        if success:
+            # Create session in state machine for tracking acknowledgment
+            from src.services.sync_state_machine import sync_state_machine
+            
+            # Extract message ID from the signed message
+            import base64
+            import json
+            payload_data = json.loads(base64.b64decode(signed_message.payload))
+            message_id = payload_data['message_id']
+            
+            # Create session ID
+            session_id = f"{config.sae_id}_{slave_id}_{message_id}"
+            
+            # Create session in state machine
+            sync_state_machine.create_session(
+                session_id=session_id,
+                master_sae_id=config.sae_id,
+                slave_sae_id=slave_id,
+                key_ids=[key.key_id],
+                rotation_timestamp=rotation_timestamp
+            )
+            
+            # Mark key as notified to this slave with rotation timestamp
+            key_service.mark_key_as_notified(key.key_id, slave_id, rotation_timestamp)
+            
+            console.print(f"[green]✓[/green] Scheduled rotation completed for {slave_id}")
+            console.print(f"[green]✓[/green] Key ID: {key.key_id}")
+            console.print(f"[green]✓[/green] Rotation time: {time.ctime(rotation_timestamp)}")
+        else:
+            console.print(f"[red]✗[/red] Scheduled rotation failed for {slave_id}")
+            
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error during scheduled key rotation for {slave_id}: {e}")
 
 
 def handle_key_set_state(args):
