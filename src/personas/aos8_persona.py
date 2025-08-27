@@ -469,26 +469,26 @@ class Aos8Persona(BasePersona):
         print(f"   🔄 Step 3: Removing old PPK (if exists)")
         old_ppks_removed = 0
         
-        # Get the old key that was marked as rolled from the key service
+        # Get the key that was in production before this rotation
         from src.services.key_service import key_service
-        rolled_keys = key_service.get_rolled_keys()
+        in_production_keys = key_service.get_in_production_keys()
         
-        # Find the key that was rolled by this new key
+        # Find the key that was in production and is being replaced by this new key
         old_key_to_remove = None
-        for rolled_key in rolled_keys:
-            if hasattr(rolled_key, 'replaced_by') and rolled_key.replaced_by == context.key_id:
-                old_key_to_remove = rolled_key.key_id
+        for in_production_key in in_production_keys:
+            if in_production_key.key_id != context.key_id:  # Don't remove the new key
+                old_key_to_remove = in_production_key.key_id
                 break
         
         if old_key_to_remove:
-            print(f"   🗑️  Removing old PPK that was rolled: {old_key_to_remove}")
+            print(f"   🗑️  Removing old PPK that was in production: {old_key_to_remove}")
             if self.delete_ppk(old_key_to_remove):
                 old_ppks_removed += 1
                 print(f"   ✅ Successfully removed old PPK: {old_key_to_remove}")
             else:
                 print(f"   ❌ Failed to remove old PPK: {old_key_to_remove}")
         else:
-            print(f"   ℹ️  No old PPK found to remove (no rolled keys or tracking issue)")
+            print(f"   ℹ️  No old PPK found to remove (no keys in production or single key scenario)")
         
         # Step 4: Verify rotation completion
         print(f"   🔄 Step 4: Verifying rotation completion")
