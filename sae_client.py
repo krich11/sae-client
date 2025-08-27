@@ -1859,13 +1859,12 @@ def handle_key_reset(args):
                 key_count = len(key_service.get_available_keys())
                 
                 # Reset the database
-                if storage_service.reset_database():
-                    # Reload keys in memory
-                    key_service._load_keys()
-                    console.print("[green]✓[/green] Successfully reset key database")
-                    console.print(f"[green]✓[/green] Deleted {key_count} keys")
-                else:
-                    console.print("[red]✗[/red] Failed to reset key database")
+                storage_service.reset_database()
+                
+                # Reload keys in memory
+                key_service._load_keys()
+                console.print("[green]✓[/green] Successfully reset key database")
+                console.print(f"[green]✓[/green] Deleted {key_count} keys")
             except Exception as e:
                 console.print(f"[red]✗[/red] Error resetting key database: {e}")
         else:
@@ -1879,8 +1878,18 @@ def handle_key_reset(args):
         if confirm in ['yes', 'y']:
             try:
                 from src.services.key_service import key_service
-                # TODO: Implement single key deletion
-                console.print("[yellow]Single key deletion not yet implemented[/yellow]")
+                
+                # Check if key exists
+                key = key_service.get_key(key_id)
+                if not key:
+                    console.print(f"[red]✗[/red] Key {key_id} not found")
+                    return
+                
+                # Delete the key
+                if key_service.delete_key(key_id):
+                    console.print(f"[green]✓[/green] Successfully deleted key {key_id}")
+                else:
+                    console.print(f"[red]✗[/red] Failed to delete key {key_id}")
             except Exception as e:
                 console.print(f"[red]✗[/red] Error deleting key: {e}")
         else:
