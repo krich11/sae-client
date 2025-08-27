@@ -22,9 +22,8 @@
     "controller_ip": "192.168.201.34",
     
     "rotation_commands": [
-        "pwd",
         "./qkd-rekey.sh",
-        "sleep 5",
+        "sleep 1",
         "via-cli vpn status"
     ],
     "debug_mode": true
