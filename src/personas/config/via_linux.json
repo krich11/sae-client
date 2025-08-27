@@ -15,7 +15,7 @@
     "cleanup_delay_seconds": 60,
     "initial_roll_delay_seconds": 30,
     "grace_period_seconds": 10,
-    "sudo_enabled": true,
+    "sudo_enabled": false,
     "sudo_user": "root",
     "sudo_password": null,
     "ppk_format": true,
