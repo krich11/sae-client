@@ -467,16 +467,28 @@ class Aos8Persona(BasePersona):
         
         # Step 3: Remove old PPK (if exists)
         print(f"   🔄 Step 3: Removing old PPK (if exists)")
-        # Get list of existing PPKs to find old ones
-        # Note: This is a simplified approach - in production you'd track the current active PPK
         old_ppks_removed = 0
         
-        # For now, we'll skip old PPK removal since we don't have tracking
-        # In a real implementation, you would:
-        # 1. Get list of current PPKs
-        # 2. Identify which ones are old (not the new one)
-        # 3. Remove them one by one
-        print(f"   ℹ️  Skipping old PPK removal (no tracking implemented)")
+        # Get the old key that was marked as rolled from the key service
+        from src.services.key_service import key_service
+        rolled_keys = key_service.get_rolled_keys()
+        
+        # Find the key that was rolled by this new key
+        old_key_to_remove = None
+        for rolled_key in rolled_keys:
+            if hasattr(rolled_key, 'replaced_by') and rolled_key.replaced_by == context.key_id:
+                old_key_to_remove = rolled_key.key_id
+                break
+        
+        if old_key_to_remove:
+            print(f"   🗑️  Removing old PPK that was rolled: {old_key_to_remove}")
+            if self.delete_ppk(old_key_to_remove):
+                old_ppks_removed += 1
+                print(f"   ✅ Successfully removed old PPK: {old_key_to_remove}")
+            else:
+                print(f"   ❌ Failed to remove old PPK: {old_key_to_remove}")
+        else:
+            print(f"   ℹ️  No old PPK found to remove (no rolled keys or tracking issue)")
         
         # Step 4: Verify rotation completion
         print(f"   🔄 Step 4: Verifying rotation completion")
