@@ -1045,8 +1045,8 @@ def show_help():
                                 - Request encryption keys for a slave SAE
   key request decryption master <master_id> keyid <key_id>
                                 - Request decryption keys from a master SAE
-  key reset [all | keyid <key_id>]
-                                - Reset key database (all keys or specific key)
+  key reset all                 - Reset key database (delete ALL stored keys permanently)
+  key reset keyid <key_id>      - Delete specific key by ID (permanent deletion)
   key notify <sae_id>           - Notify a slave SAE of available key
   key rotate <sae_id>           - Request keys and notify slave (combined operation)
   key rotate <sae_id> start <interval>
@@ -1842,7 +1842,16 @@ def handle_key_request_decryption_master(args):
 def handle_key_reset(args):
     """Handle key reset command."""
     if not args:
-        console.print("[yellow]Usage: key reset [all | keyid <key_id>][/yellow]")
+        console.print("[yellow]Usage: key reset <subcommand>[/yellow]")
+        console.print("Available subcommands:")
+        console.print("  all                    - Delete ALL stored keys permanently")
+        console.print("  keyid <key_id>         - Delete specific key by ID")
+        console.print("")
+        console.print("Examples:")
+        console.print("  key reset all          - Clear entire key database")
+        console.print("  key reset keyid abc123 - Delete key with ID 'abc123'")
+        console.print("")
+        console.print("[red]Warning: These operations are permanent and cannot be undone![/red]")
         return
     
     if args[0].lower() == 'all':
@@ -1895,7 +1904,14 @@ def handle_key_reset(args):
         else:
             console.print("Operation cancelled.")
     else:
-        console.print("[yellow]Usage: key reset [all | keyid <key_id>][/yellow]")
+        console.print("[yellow]Usage: key reset <subcommand>[/yellow]")
+        console.print("Available subcommands:")
+        console.print("  all                    - Delete ALL stored keys permanently")
+        console.print("  keyid <key_id>         - Delete specific key by ID")
+        console.print("")
+        console.print("Examples:")
+        console.print("  key reset all          - Clear entire key database")
+        console.print("  key reset keyid abc123 - Delete key with ID 'abc123'")
 
 
 def handle_key_notify(args):
