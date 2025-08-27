@@ -122,7 +122,9 @@ class EnvMigrator:
             self.logger.info(f"Migration needed - missing variables: {missing_vars}")
             return True, missing_vars
         else:
-            self.logger.info("No migration needed - all template variables present")
+            # Only log in debug mode
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.info("No migration needed - all template variables present")
             return False, set()
     
     def migrate(self, backup: bool = True) -> bool:
@@ -140,7 +142,9 @@ class EnvMigrator:
             needs_mig, missing_vars = self.needs_migration()
             
             if not needs_mig:
-                self.logger.info("No migration needed")
+                # Only log in debug mode
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.info("No migration needed")
                 return True
             
             # Create backup if requested and .env exists

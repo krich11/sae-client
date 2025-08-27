@@ -100,7 +100,9 @@ class ConfigManager:
         )
         
         self.logger = logging.getLogger(__name__)
-        self.logger.info("SAE Client configuration initialized")
+        # Only log in debug mode
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.info("SAE Client configuration initialized")
     
     def _validate_paths(self):
         """Validate and create necessary directories."""
@@ -115,7 +117,9 @@ class ConfigManager:
         for path in paths_to_create:
             Path(path).mkdir(parents=True, exist_ok=True)
         
-        self.logger.info("Directory structure validated")
+        # Only log in debug mode
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.info("Directory structure validated")
     
     def get_kme_url(self, endpoint: str = "") -> str:
         """Get full KME URL for given endpoint."""

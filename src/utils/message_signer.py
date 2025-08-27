@@ -41,7 +41,9 @@ class MessageSigner:
                         password=None,
                         backend=default_backend()
                     )
-                self.logger.info("Loaded SAE private key")
+                # Only log in debug mode
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.info("Loaded SAE private key")
             else:
                 self.logger.warning(f"SAE private key not found: {private_key_path}")
             
@@ -54,7 +56,9 @@ class MessageSigner:
                     from cryptography import x509
                     cert = x509.load_pem_x509_certificate(cert_data, default_backend())
                     self._public_key = cert.public_key()
-                self.logger.info("Loaded SAE public key from certificate")
+                # Only log in debug mode
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.info("Loaded SAE public key from certificate")
             else:
                 self.logger.warning(f"SAE certificate not found: {cert_path}")
                 

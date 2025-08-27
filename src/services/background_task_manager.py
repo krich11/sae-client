@@ -24,7 +24,9 @@ class BackgroundTaskManager:
         self.monitor_thread = threading.Thread(target=self._monitor_tasks, daemon=True)
         self.monitor_thread.start()
         
-        self.logger.info("Background task manager initialized")
+        # Only log initialization in debug mode
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.info("Background task manager initialized")
     
     def start_interval_task(self, task_id: str, task_func: Callable, interval_minutes: int, *args, **kwargs) -> bool:
         """
@@ -58,7 +60,9 @@ class BackgroundTaskManager:
                 'run_count': 0
             }
             
-            self.logger.info(f"Started interval task {task_id} with {interval_minutes} minute interval")
+            # Only log in debug mode
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.info(f"Started interval task {task_id} with {interval_minutes} minute interval")
             return True
     
     def stop_task(self, task_id: str) -> bool:
@@ -77,7 +81,9 @@ class BackgroundTaskManager:
                 return False
             
             self.tasks[task_id]['running'] = False
-            self.logger.info(f"Stopped task {task_id}")
+            # Only log in debug mode
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.info(f"Stopped task {task_id}")
             return True
     
     def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
@@ -141,7 +147,9 @@ class BackgroundTaskManager:
             task = self.tasks[task_id]
         
         try:
-            self.logger.info(f"Executing task {task_id}")
+            # Only log execution in debug mode
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.info(f"Executing task {task_id}")
             
             # Execute the task function
             task['task_func'](*task['args'], **task['kwargs'])
@@ -153,7 +161,9 @@ class BackgroundTaskManager:
                     self.tasks[task_id]['next_run'] = time.time() + task['interval_seconds']
                     self.tasks[task_id]['run_count'] += 1
                     
-                    self.logger.info(f"Task {task_id} completed successfully (run #{self.tasks[task_id]['run_count']})")
+                    # Only log completion in debug mode
+                    if self.logger.isEnabledFor(logging.DEBUG):
+                        self.logger.info(f"Task {task_id} completed successfully (run #{self.tasks[task_id]['run_count']})")
         
         except Exception as e:
             self.logger.error(f"Error executing task {task_id}: {e}")
@@ -167,7 +177,9 @@ class BackgroundTaskManager:
     
     def shutdown(self):
         """Shutdown the background task manager."""
-        self.logger.info("Shutting down background task manager")
+        # Only log shutdown in debug mode
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.info("Shutting down background task manager")
         self.running = False
         
         # Stop all tasks

@@ -45,7 +45,9 @@ class NotificationService:
     def register_callback(self, event_type: str, callback: Callable):
         """Register a callback for a specific event type."""
         self.notification_callbacks[event_type] = callback
-        self.logger.info(f"Registered callback for event: {event_type}")
+        # Only log in debug mode
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.info(f"Registered callback for event: {event_type}")
     
     def _default_key_available_callback(self, notification: KeyAvailabilityNotification):
         """Default callback for key availability notifications."""

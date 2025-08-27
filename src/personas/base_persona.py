@@ -335,7 +335,9 @@ class PersonaManager:
                         with open(config_file, 'r') as f:
                             config = json.load(f)
                         self.persona_configs[persona_name] = config
-                        self.logger.info(f"Loaded config for persona: {persona_name}")
+                        # Only log in debug mode
+                        if self.logger.isEnabledFor(logging.DEBUG):
+                            self.logger.info(f"Loaded config for persona: {persona_name}")
                     except Exception as e:
                         self.logger.error(f"Failed to load config for persona {persona_name}: {e}")
             else:
@@ -370,9 +372,11 @@ class PersonaManager:
                     class_name = 'ViaLinuxPersona'
                 else:
                     class_name = persona_name.replace('_', '').title() + "Persona"
-                self.logger.info(f"Loading persona: {persona_name}")
-                self.logger.info(f"Module: {module_name}")
-                self.logger.info(f"Looking for class: {class_name}")
+                # Only log in debug mode
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.info(f"Loading persona: {persona_name}")
+                    self.logger.info(f"Module: {module_name}")
+                    self.logger.info(f"Looking for class: {class_name}")
                 module = __import__(module_name, fromlist=[class_name])
                 persona_class = getattr(module, class_name)
                 
@@ -380,7 +384,9 @@ class PersonaManager:
                 persona = persona_class(config)
                 self.personas[persona_name] = persona
                 
-                self.logger.info(f"Successfully loaded persona: {persona_name}")
+                # Only log in debug mode
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.info(f"Successfully loaded persona: {persona_name}")
                 return persona
                 
             except ImportError:
@@ -438,7 +444,9 @@ class PersonaManager:
             persona = self.load_persona(persona_name)
             
             if persona:
-                self.logger.info(f"Successfully loaded configured persona: {persona_name}")
+                # Only log in debug mode
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.info(f"Successfully loaded configured persona: {persona_name}")
             else:
                 self.logger.warning(f"Failed to load configured persona: {persona_name}")
             

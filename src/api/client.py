@@ -34,7 +34,9 @@ class KMEClient:
         
         if Path(cert_paths['sae_cert']).exists() and Path(cert_paths['sae_key']).exists():
             session.cert = (cert_paths['sae_cert'], cert_paths['sae_key'])
-            self.logger.info("mTLS certificates configured")
+            # Only log in debug mode
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.info("mTLS certificates configured")
         else:
             self.logger.warning("SAE certificates not found, using basic authentication")
             self.logger.warning(f"Cert:{cert_paths['sae_cert']}, {cert_paths['sae_key']}")
@@ -43,7 +45,9 @@ class KMEClient:
         if self.config.verify_ssl:
             if Path(cert_paths['ca_cert']).exists():
                 session.verify = cert_paths['ca_cert']
-                self.logger.info("CA certificate configured for server verification")
+                # Only log in debug mode
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.info("CA certificate configured for server verification")
             else:
                 self.logger.warning("CA certificate not found, disabling SSL verification")
                 session.verify = False

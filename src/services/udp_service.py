@@ -58,7 +58,9 @@ class UDPService:
     def register_handler(self, message_type: MessageType, handler: Callable):
         """Register a message handler for a specific message type."""
         self.message_handlers[message_type] = handler
-        self.logger.info(f"Registered handler for message type: {message_type}")
+        # Only log in debug mode
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.info(f"Registered handler for message type: {message_type}")
     
     def start_listener(self, port: Optional[int] = None) -> bool:
         """
@@ -87,7 +89,9 @@ class UDPService:
             self.listener_thread = threading.Thread(target=self._listener_loop, daemon=True)
             self.listener_thread.start()
             
-            self.logger.info(f"UDP listener started on port {listen_port}")
+            # Only log in debug mode
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.info(f"UDP listener started on port {listen_port}")
             return True
             
         except Exception as e:
@@ -109,11 +113,15 @@ class UDPService:
             self.listener_thread.join(timeout=5)
             self.listener_thread = None
         
-        self.logger.info("UDP listener stopped")
+        # Only log in debug mode
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.info("UDP listener stopped")
     
     def _listener_loop(self):
         """Main listener loop."""
-        self.logger.info("UDP listener loop started")
+        # Only log in debug mode
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.info("UDP listener loop started")
         
         while self.is_running:
             try:
@@ -139,7 +147,9 @@ class UDPService:
                     self.logger.error(f"Error in listener loop: {e}")
                 break
         
-        self.logger.info("UDP listener loop stopped")
+        # Only log in debug mode
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.info("UDP listener loop stopped")
     
     def _process_message(self, data: bytes, addr: tuple):
         """Process received UDP message."""
