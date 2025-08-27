@@ -721,8 +721,8 @@ def reset_keys(confirm):
             from src.services.key_service import key_service
             from src.services.storage_service import storage_service
             
-            # Get count of keys before deletion
-            key_count = len(key_service.get_available_keys())
+            # Get count of keys before deletion (all keys, not just available ones)
+            key_count = len(key_service.get_all_keys())
             
             # Reset the database
             storage_service.reset_database()
@@ -1864,8 +1864,8 @@ def handle_key_reset(args):
                 from src.services.key_service import key_service
                 from src.services.storage_service import storage_service
                 
-                # Get count of keys before deletion
-                key_count = len(key_service.get_available_keys())
+                # Get count of keys before deletion (all keys, not just available ones)
+                key_count = len(key_service.get_all_keys())
                 
                 # Reset the database
                 storage_service.reset_database()
