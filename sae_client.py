@@ -186,7 +186,7 @@ def print_status(status: SAEStatus):
 def print_keys(keys, title="Available Keys"):
     """Print key information in a table."""
     if not keys:
-        console.print(f"[yellow]No {title.lower()} found[/yellow]")
+        console.print(f"[yellow]No keys found[/yellow]")
         return
     
     # Check if we're dealing with ETSI keys or Local keys
