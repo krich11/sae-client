@@ -1731,9 +1731,16 @@ class UDPService:
                 self.logger.info(f"Pre-configuring key {actual_key_id} using {persona_name} persona")
                 from src.personas.base_persona import PreConfigureContext
                 from src.services.key_service import key_service
+                
+                # Get the key and verify it exists
+                key = key_service.get_key(actual_key_id)
+                if not key:
+                    self.logger.error(f"Key {actual_key_id} not found in key service - cannot pre-configure")
+                    return
+                
                 preconfigure_context = PreConfigureContext(
                     key_id=actual_key_id,
-                    key_material=key_service.get_key(actual_key_id).key_material,
+                    key_material=key.key_material,
                     device_interface=persona_config.get('device_interface'),
                     encryption_algorithm=persona_config.get('encryption_algorithm', 'AES-256'),
                     key_priority=persona_config.get('key_priority', 'normal'),
