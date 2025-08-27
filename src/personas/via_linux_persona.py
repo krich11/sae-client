@@ -215,6 +215,10 @@ class ViaLinuxPersona(LinuxShellPersona):
                 print(f"   👤 Sudo User: {self.sudo_user}")
                 print(f"   🔐 Sudo Password: {'Set' if self.sudo_password else 'Not set'}")
             
+            # Delete any existing keyid file to prevent false positives
+            print(f"   🗑️  Cleaning up any existing /tmp/keyid file")
+            self._execute_shell_command("rm -f /tmp/keyid")
+            
             # Check current PPK.xml status before rotation
             print(f"   🔍 Pre-rotation PPK.xml status check:")
             ppk_file = "/usr/share/via/PPK.xml"
@@ -295,12 +299,21 @@ class ViaLinuxPersona(LinuxShellPersona):
                 else:
                     print(f"      {service}.service: {stderr.strip()}")
             
+            # Write key ID to /tmp/keyid after successful rotation
+            print(f"   📝 Writing key ID to /tmp/keyid")
+            success, stdout, stderr = self._execute_shell_command(f"echo '{context.key_id}' > /tmp/keyid")
+            if success:
+                print(f"   ✅ Key ID {context.key_id} written to /tmp/keyid")
+            else:
+                print(f"   ⚠️  Warning: Failed to write key ID to /tmp/keyid: {stderr}")
+            
             print(f"   ✅ Key rotation completed successfully")
             print(f"   📊 Rotation Summary:")
             print(f"      - Commands executed: {len(rotation_commands)}")
             print(f"      - PPK.xml before: {'Exists' if ppk_exists_before else 'Missing'}")
             print(f"      - PPK.xml after: {'Exists' if ppk_exists_after else 'Missing'}")
             print(f"      - All commands: {'SUCCESS' if rotation_commands else 'SKIPPED'}")
+            print(f"      - Key ID written to /tmp/keyid: {context.key_id}")
             
             return True
             
@@ -419,6 +432,13 @@ class ViaLinuxPersona(LinuxShellPersona):
             ppk_exists = success and 'exists' in stdout
             ppk_path = "/usr/share/via/PPK.xml"
             status["ppk_file_exists"] = f"{ppk_exists} ({ppk_path})" if ppk_exists else ppk_exists
+            
+            # Read current PPK ID from /tmp/keyid
+            success, stdout, stderr = self._execute_shell_command("cat /tmp/keyid 2>/dev/null || echo 'File not found'")
+            if success and stdout.strip() and stdout.strip() != 'File not found':
+                status["via_ppk_id"] = stdout.strip()
+            else:
+                status["via_ppk_id"] = "No key ID found"
             
             # Read VIA VPN status file
             success, stdout, stderr = self._execute_shell_command("cat /usr/share/via/status/vpn/status 2>/dev/null || echo 'File not found'")
